@@ -171,6 +171,50 @@ verify_checksum() {
   log "warning: no SHA-256 checksum tool found; continuing because only font files will be extracted"
 }
 
+font_already_installed() {
+  local match
+  local dir
+  local dirs=()
+
+  if command -v fc-match >/dev/null 2>&1; then
+    match="$(fc-match "$FONT_NAME Nerd Font" 2>/dev/null || true)"
+    if printf '%s\n' "$match" | grep -Eiq "${FONT_NAME}.*Nerd|Nerd.*${FONT_NAME}"; then
+      log "installed: $FONT_NAME Nerd Font already available via fontconfig ($match)"
+      return 0
+    fi
+  fi
+
+  case "$OS_NAME" in
+    macos)
+      dirs=(
+        "$TARGET_HOME/Library/Fonts"
+        "$TARGET_HOME/Library/Fonts/NerdFonts/$FONT_NAME"
+        "/Library/Fonts"
+        "/Library/Fonts/NerdFonts/$FONT_NAME"
+      )
+      ;;
+    *)
+      dirs=(
+        "$TARGET_HOME/.local/share/fonts"
+        "$TARGET_HOME/.local/share/fonts/NerdFonts/$FONT_NAME"
+        "/usr/local/share/fonts"
+        "/usr/share/fonts"
+      )
+      ;;
+  esac
+
+  for dir in "${dirs[@]}"; do
+    if [[ -d "$dir" ]] && find "$dir" -maxdepth 5 -type f \
+      \( -iname "*${FONT_NAME}*NerdFont*.ttf" -o -iname "*${FONT_NAME}*NerdFont*.otf" \) \
+      -print -quit 2>/dev/null | grep -q .; then
+      log "installed: $FONT_NAME Nerd Font already exists under $dir"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 install_font() {
   local tmp_dir
   local archive
@@ -194,6 +238,15 @@ install_font() {
   log "Version: $FONT_VERSION"
   log "Detected OS: $OS_NAME"
   log "Install dir: $FONT_DIR"
+
+  if font_already_installed; then
+    if [[ "$DRY_RUN" == "1" ]]; then
+      log "dry-run: font is already installed; installer would skip download"
+    else
+      log "skip: font is already installed"
+    fi
+    return 0
+  fi
 
   if [[ "$DRY_RUN" == "1" ]]; then
     log "dry-run: would download $font_url"

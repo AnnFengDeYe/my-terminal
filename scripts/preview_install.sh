@@ -132,26 +132,55 @@ syntax_highlighting_state() {
 
 font_state() {
   local os="$1"
-  local font_dir
+  local match
+  local dir
+  local dirs=()
 
-  if [[ "$os" == "macos" ]]; then
-    font_dir="$TARGET_HOME/Library/Fonts/NerdFonts/JetBrainsMono"
-  else
-    font_dir="$TARGET_HOME/.local/share/fonts/NerdFonts/JetBrainsMono"
+  if command -v fc-match >/dev/null 2>&1; then
+    match="$(fc-match 'JetBrainsMono Nerd Font' 2>/dev/null || true)"
+    if printf '%s\n' "$match" | grep -Eiq 'JetBrainsMono.*Nerd|JetBrains.*Nerd|Nerd.*JetBrains'; then
+      if is_zh; then
+        printf '  [已安装] JetBrainsMono Nerd Font (%s)\n' "$match"
+      else
+        printf '  [installed] JetBrainsMono Nerd Font (%s)\n' "$match"
+      fi
+      return 0
+    fi
   fi
 
-  if [[ -d "$font_dir" ]]; then
-    if is_zh; then
-      printf '  [已安装] JetBrainsMono Nerd Font\n'
-    else
-      printf '  [installed] JetBrainsMono Nerd Font\n'
-    fi
+  if [[ "$os" == "macos" ]]; then
+    dirs=(
+      "$TARGET_HOME/Library/Fonts"
+      "$TARGET_HOME/Library/Fonts/NerdFonts/JetBrainsMono"
+      "/Library/Fonts"
+      "/Library/Fonts/NerdFonts/JetBrainsMono"
+    )
   else
-    if is_zh; then
-      printf '  [待安装] JetBrainsMono Nerd Font\n'
-    else
-      printf '  [missing]   JetBrainsMono Nerd Font\n'
+    dirs=(
+      "$TARGET_HOME/.local/share/fonts"
+      "$TARGET_HOME/.local/share/fonts/NerdFonts/JetBrainsMono"
+      "/usr/local/share/fonts"
+      "/usr/share/fonts"
+    )
+  fi
+
+  for dir in "${dirs[@]}"; do
+    if [[ -d "$dir" ]] && find "$dir" -maxdepth 5 -type f \
+      \( -iname '*JetBrainsMono*NerdFont*.ttf' -o -iname '*JetBrainsMono*NerdFont*.otf' \) \
+      -print -quit 2>/dev/null | grep -q .; then
+      if is_zh; then
+        printf '  [已安装] JetBrainsMono Nerd Font (%s)\n' "$dir"
+      else
+        printf '  [installed] JetBrainsMono Nerd Font (%s)\n' "$dir"
+      fi
+      return 0
     fi
+  done
+
+  if is_zh; then
+    printf '  [待安装] JetBrainsMono Nerd Font\n'
+  else
+    printf '  [missing]   JetBrainsMono Nerd Font\n'
   fi
 }
 
