@@ -1,0 +1,7 @@
+[push]
+	default = simple
+[user]
+	email = <YOUR_EMAIL>
+	name = <YOUR_NAME>
+[core]
+	editor = subl -n -w

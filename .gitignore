@@ -1,0 +1,8 @@
+.DS_Store
+**/.DS_Store
+*.backup.*
+*.repo-backup.*
+backups/
+.cache/
+tmp/
+node_modules/

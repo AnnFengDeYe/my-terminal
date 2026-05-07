@@ -1,0 +1,5 @@
+# Minimal cross-platform zshenv for shared starter kits.
+# Keep this file small: it is loaded for every zsh invocation.
+
+export EDITOR="${EDITOR:-nvim}"
+export VISUAL="${VISUAL:-$EDITOR}"

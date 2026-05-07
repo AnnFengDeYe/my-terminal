@@ -1,0 +1,37 @@
+# ==========================================
+# Ghostty 核心配置
+# ==========================================
+
+# 字体大小
+font-size = 20
+
+# 窗口初始宽度
+window-width = 110
+
+# 窗口初始高度 (单位是字符的行数)
+window-height = 35
+
+# 全局指定字体名称 (已取消注释，并换成了 JetBrains)
+font-family = "JetBrainsMono Nerd Font"
+
+
+cursor-style = bar
+cursor-style-blink = true
+
+
+# 设置主题色彩方案
+theme = 0x96f
+
+# 设置背景透明度 (0.0 是完全透明，1.0 是完全不透明，推荐 0.85 到 0.95 之间)
+background-opacity = 0.9
+
+# 设置背景毛玻璃模糊程度 (数值越大越模糊，通常配合透明度使用)
+background-blur-radius = 20
+
+macos-titlebar-style = transparent
+
+
+# 3. 快捷键：配置热重载
+keybind = ctrl+shift+r=reload_config
+
+term = xterm-256color

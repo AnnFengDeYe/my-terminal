@@ -1,0 +1,13 @@
+zsh
+zsh-syntax-highlighting
+tmux
+starship
+fzf
+zoxide
+eza
+bat
+ripgrep
+fd-find
+lazygit
+neovim
+yazi

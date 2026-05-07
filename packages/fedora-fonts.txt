@@ -1,0 +1,7 @@
+fontconfig
+ca-certificates
+curl
+unzip
+xz
+jetbrains-mono-fonts
+fontawesome-fonts

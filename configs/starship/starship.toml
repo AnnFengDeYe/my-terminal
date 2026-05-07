@@ -1,0 +1,79 @@
+# ==========================================
+# Starship Powerline Prompt
+# 固定昵称 + 系统图标 + SSH 主机识别 + Git 状态
+# ==========================================
+
+format = """
+${custom.os_identity}$hostname$directory$git_branch$git_status
+$character"""
+
+
+# ==========================================
+# 1. 身份栏：系统图标 + 固定显示名
+# ==========================================
+
+[custom.os_identity]
+command = 'echo "$STARSHIP_OS_ICON $STARSHIP_DISPLAY_NAME"'
+when = 'true'
+format = "[ $output ]($style)[](fg:#FA5A55 bg:#FDB927)"
+style = "bold black bg:#FA5A55"
+
+
+# ==========================================
+# 2. SSH 主机名：仅远程连接时显示
+# ==========================================
+
+[hostname]
+ssh_only = true
+format = "[@$hostname ]($style)"
+style = "bold black bg:#FDB927"
+disabled = false
+
+
+# ==========================================
+# 3. 当前目录
+# ==========================================
+
+[directory]
+format = "[ $path ]($style)[](fg:#FDB927)"
+style = "bold black bg:#FDB927"
+truncation_length = 3
+truncation_symbol = "…/"
+
+
+# ==========================================
+# 4. Git 分支
+# ==========================================
+
+[git_branch]
+format = " [ $branch]($style)"
+style = "bold green"
+
+
+# ==========================================
+# 5. Git 状态
+# ==========================================
+
+[git_status]
+format = " [$all_status$ahead_behind]($style)"
+style = "bold red"
+
+conflicted = "=${count} "
+ahead = "⇡${count} "
+behind = "⇣${count} "
+diverged = "⇕⇡${ahead_count}⇣${behind_count} "
+untracked = "?${count} "
+stashed = "\\$${count} "
+modified = "!${count} "
+staged = "+${count} "
+renamed = "»${count} "
+deleted = "✘${count} "
+
+
+# ==========================================
+# 6. 第二行输入光标
+# ==========================================
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"

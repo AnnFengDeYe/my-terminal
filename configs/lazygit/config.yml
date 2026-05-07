@@ -1,0 +1,8 @@
+# Minimal lazygit config. This starter kit intentionally avoids automatic
+# push, rebase, or other high-risk git workflow automation.
+git:
+  autoFetch: true
+  autoRefresh: true
+gui:
+  showFileTree: true
+  showCommandLog: false

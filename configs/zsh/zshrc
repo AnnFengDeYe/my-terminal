@@ -1,0 +1,278 @@
+# ==========================================
+# 1. 核心环境变量与路径
+# ==========================================
+
+# Homebrew：Apple Silicon macOS
+if [ -d /opt/homebrew/bin ]; then
+  export PATH="/opt/homebrew/bin:$PATH"
+fi
+
+# Homebrew：Intel macOS / 部分 Linuxbrew 场景
+if [ -d /usr/local/bin ]; then
+  export PATH="/usr/local/bin:$PATH"
+fi
+
+# Linuxbrew
+if [ -d /home/linuxbrew/.linuxbrew/bin ]; then
+  export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"
+fi
+
+# 第三方工具
+export PATH="$HOME/.antigravity/antigravity/bin:$PATH"  # Antigravity
+export STM32CubeMX_PATH="/Applications/STMicroelectronics/STM32CubeMX.app/Contents/Resources"
+
+
+# ==========================================
+# 2. Starship 身份栏配置
+# ==========================================
+
+# 固定显示名：不依赖系统用户名；可在私有环境中覆盖
+export STARSHIP_DISPLAY_NAME="${STARSHIP_DISPLAY_NAME:-terminal}"
+
+# 根据系统类型设置图标
+case "$(uname -s)" in
+  Darwin)
+    export STARSHIP_OS_ICON=""
+    ;;
+  Linux)
+    if grep -qi "raspberry pi" /proc/device-tree/model 2>/dev/null; then
+      # Nerd Font: nf-linux-raspberry_pi
+      export STARSHIP_OS_ICON=""
+    else
+      linux_id=""
+      if [ -r /etc/os-release ]; then
+        linux_id="$(sed -n 's/^ID=//p' /etc/os-release | tr -d '"' | head -n 1)"
+      fi
+
+      case "$linux_id" in
+        arch)
+          export STARSHIP_OS_ICON=""
+          ;;
+        debian)
+          export STARSHIP_OS_ICON=""
+          ;;
+        fedora)
+          export STARSHIP_OS_ICON=""
+          ;;
+        ubuntu)
+          export STARSHIP_OS_ICON=""
+          ;;
+        *)
+          export STARSHIP_OS_ICON=""
+          ;;
+      esac
+    fi
+    ;;
+  *)
+    export STARSHIP_OS_ICON="💻"
+    ;;
+esac
+
+
+# ==========================================
+# 3. 快捷别名
+# ==========================================
+
+# 常用目录；按需改成自己的工作目录
+if [ -d "$HOME/projects" ]; then
+  alias coding="cd $HOME/projects"
+fi
+
+
+# ------------------------------------------
+# eza：现代 ls / tree 替代
+# ------------------------------------------
+
+if command -v eza >/dev/null 2>&1; then
+  alias ls="eza --icons=always --group-directories-first"                 # 简洁列表
+  alias ll="eza -lah --icons=always --group-directories-first --git"      # 详细列表 + Git 状态
+  alias la="eza -la --icons=always --group-directories-first"             # 显示隐藏文件
+  alias lt="eza --tree --icons=always --git-ignore --level=3"             # 3 层目录树
+  alias tree="eza --tree --icons=always --git-ignore"                     # 完整目录树
+fi
+
+
+# ------------------------------------------
+# bat：现代 cat / less 替代
+# ------------------------------------------
+
+if command -v bat >/dev/null 2>&1; then
+  alias cat="bat --paging=never"  # 短文件：直接高亮输出
+  alias less="bat"                # 长文件：分页阅读
+fi
+
+
+# ------------------------------------------
+# Neovim
+# ------------------------------------------
+
+if command -v nvim >/dev/null 2>&1; then
+  alias v="nvim"
+  alias vi="nvim"
+  alias vim="nvim"
+fi
+
+
+# ==========================================
+# 4. Zsh 基础功能
+# ==========================================
+
+# 自动补全
+autoload -Uz compinit
+compinit
+
+
+# ==========================================
+# 5. 现代终端插件加载
+# ==========================================
+
+# ------------------------------------------
+# zoxide：智能目录跳转
+# ------------------------------------------
+
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init zsh)"
+
+  # j = jump；ji = 交互式跳转
+  alias j="z"
+  alias ji="zi"
+fi
+
+
+# ------------------------------------------
+# fzf：模糊搜索与交互式选择
+# ------------------------------------------
+
+if command -v fzf >/dev/null 2>&1; then
+
+  # 使用 fd 作为 fzf 默认文件搜索引擎
+  # 默认不搜索隐藏文件，避免 .zsh_sessions / .cache / .cmake 等噪音
+  if command -v fd >/dev/null 2>&1; then
+    export FZF_DEFAULT_COMMAND='fd --type f --follow --exclude .git --exclude node_modules --exclude .cache --exclude .cmake --exclude .zsh_sessions --exclude Library'
+    export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+
+    export FZF_ALT_C_COMMAND='fd --type d --follow --exclude .git --exclude node_modules --exclude .cache --exclude .cmake --exclude .zsh_sessions --exclude Library'
+  fi
+
+  # fzf 默认界面样式
+  export FZF_DEFAULT_OPTS='
+    --height 40%
+    --layout=reverse
+    --border
+    --inline-info
+  '
+
+  # Ctrl+T：搜索文件时使用 bat 预览
+  if command -v bat >/dev/null 2>&1; then
+    export FZF_CTRL_T_OPTS='
+      --preview "bat --color=always --style=numbers --line-range=:300 {}"
+      --preview-window=right:60%:wrap
+    '
+  fi
+
+  # Alt+C：搜索目录时使用 eza 预览
+  if command -v eza >/dev/null 2>&1; then
+    export FZF_ALT_C_OPTS='
+      --preview "eza --tree --level=2 --icons=always --git-ignore {}"
+      --preview-window=right:60%:wrap
+    '
+  fi
+
+  # ff：手动进入“包含隐藏文件”的全量文件搜索
+  # 适合查找 .zshrc / .config / starship.toml 等配置文件
+  if command -v fd >/dev/null 2>&1 && command -v bat >/dev/null 2>&1; then
+    alias ff='fd --type f --hidden --follow --exclude .git --exclude node_modules --exclude .cache --exclude .cmake --exclude .zsh_sessions --exclude Library | fzf --preview "bat --color=always --style=numbers --line-range=:300 {}" --preview-window=right:60%:wrap'
+  fi
+
+  # 加载 fzf shell 集成
+  if [ -f "$HOME/.fzf.zsh" ]; then
+    source "$HOME/.fzf.zsh"
+  elif command -v brew >/dev/null 2>&1; then
+    FZF_BASE="$(brew --prefix)/opt/fzf/shell"
+
+    [ -f "$FZF_BASE/key-bindings.zsh" ] && source "$FZF_BASE/key-bindings.zsh"
+    [ -f "$FZF_BASE/completion.zsh" ] && source "$FZF_BASE/completion.zsh"
+  fi
+
+fi
+
+# ------------------------------------------
+# zsh-syntax-highlighting：命令输入高亮
+# ------------------------------------------
+
+if command -v brew >/dev/null 2>&1; then
+  ZSH_HIGHLIGHT_PATH="$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+elif [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
+  ZSH_HIGHLIGHT_PATH="/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+fi
+
+[ -n "$ZSH_HIGHLIGHT_PATH" ] && [ -f "$ZSH_HIGHLIGHT_PATH" ] && source "$ZSH_HIGHLIGHT_PATH"
+
+# ------------------------------------------
+# fd：现代 find 替代
+# ------------------------------------------
+
+if command -v fd >/dev/null 2>&1; then
+  alias find="fd"                                  # 替代 find，语法更简洁
+  alias fda="fd --hidden --follow --exclude .git" # 搜索全部，包含隐藏文件
+  alias fdd="fd --type d"                         # 只搜索目录
+  alias fdf="fd --type f"                         # 只搜索文件
+fi
+
+# ------------------------------------------
+# ripgrep：现代 grep 替代
+# ------------------------------------------
+
+if command -v rg >/dev/null 2>&1; then
+  alias grep="rg"    # 替代 grep，搜索更快
+  alias rgi="rg -i"  # 忽略大小写搜索
+
+  rga() {            # 搜索全部，包含隐藏文件
+    rg --hidden --follow \
+      --glob '!.git' \
+      --glob '!node_modules' \
+      --glob '!.cache' \
+      "$@"
+  }
+fi
+
+# ------------------------------------------
+# Yazi：终端文件管理器
+# ------------------------------------------
+
+if command -v yazi >/dev/null 2>&1; then
+  alias y="yazi" # 打开终端文件管理器
+fi
+
+# ------------------------------------------
+# lazygit：交互式 Git 管理器
+# ------------------------------------------
+
+if command -v lazygit >/dev/null 2>&1; then
+  alias lg="lazygit" # 打开 Git 图形管理界面
+fi
+
+# ------------------------------------------
+# tmux：终端会话管理
+# ------------------------------------------
+
+if command -v tmux >/dev/null 2>&1; then
+  alias tls="tmux ls"                         # 查看所有 tmux 会话
+  alias tnew="tmux new -s"                    # 新建指定名称的 tmux 会话
+  alias ta="tmux attach -t"                   # 进入指定 tmux 会话
+  alias td="tmux detach"                      # 断开当前会话但不终止任务
+  alias tk="tmux kill-session -t"             # 终止指定 tmux 会话
+  alias tka="tmux kill-server"                # 终止所有 tmux 会话
+
+  alias tagent="tmux new -A -s agent-dev"     # 进入或创建 agent-dev 开发会话
+  alias topenclaw="tmux new -A -s openclaw"   # 进入或创建 openclaw 会话
+  alias tdaily="tmux new -A -s daily-agent"   # 进入或创建 daily-agent 会话
+fi
+
+# ------------------------------------------
+# Starship：终端提示符
+# ------------------------------------------
+
+if command -v starship >/dev/null 2>&1; then
+  eval "$(starship init zsh)"
+fi

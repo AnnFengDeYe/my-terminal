@@ -1,0 +1,8 @@
+# Minimal yazi config. Replace this with your own ~/.config/yazi directory
+# by running scripts/import_existing_configs.sh on a machine with yazi config.
+
+[manager]
+show_hidden = false
+sort_by = "natural"
+sort_sensitive = false
+sort_reverse = false

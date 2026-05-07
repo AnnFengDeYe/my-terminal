@@ -1,0 +1,6 @@
+fontconfig
+ca-certificates
+curl
+unzip
+xz
+ttf-jetbrains-mono-nerd
