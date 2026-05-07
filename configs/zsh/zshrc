@@ -27,6 +27,11 @@ if [ -d "$HOME/.local/bin" ]; then
   export PATH="$HOME/.local/bin:$PATH"
 fi
 
+# Snap binaries：部分 Linux GUI/CLI 应用会安装到这里
+if [ -d /snap/bin ]; then
+  export PATH="/snap/bin:$PATH"
+fi
+
 # 第三方工具
 export PATH="$HOME/.antigravity/antigravity/bin:$PATH"  # Antigravity
 export STM32CubeMX_PATH="/Applications/STMicroelectronics/STM32CubeMX.app/Contents/Resources"

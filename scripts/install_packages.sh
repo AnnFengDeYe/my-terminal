@@ -116,9 +116,15 @@ install_brew() {
   fi
 
   if [[ "$OS_NAME" == "macos" && "$INSTALL_GUI_APPS" == "1" ]]; then
-    run_cmd brew bundle --file "$REPO_ROOT/Brewfile.macos"
+    local ghostty_args=("--package-manager" "brew")
+    [[ "$DRY_RUN" == "1" ]] && ghostty_args+=("--dry-run")
+    [[ "$YES" == "1" ]] && ghostty_args+=("--yes")
+    "$REPO_ROOT/scripts/install_ghostty.sh" "${ghostty_args[@]}"
   elif [[ "$INSTALL_GUI_APPS" == "1" ]]; then
-    printf 'notice: Ghostty is optional on Linux; install it manually if your distribution supports it.\n'
+    local ghostty_args=("--package-manager" "$PACKAGE_MANAGER")
+    [[ "$DRY_RUN" == "1" ]] && ghostty_args+=("--dry-run")
+    [[ "$YES" == "1" ]] && ghostty_args+=("--yes")
+    "$REPO_ROOT/scripts/install_ghostty.sh" "${ghostty_args[@]}"
   fi
 
   return 0
@@ -135,7 +141,9 @@ install_apt() {
   if [[ "$DRY_RUN" == "1" ]]; then
     printf 'dry-run: %s apt-get update\n' "$sudo_cmd"
     printf 'dry-run: %s apt-get install -y %s\n' "$sudo_cmd" "${PACKAGES[*]}"
-    [[ "$INSTALL_GUI_APPS" == "1" ]] && printf 'dry-run: Ghostty is optional on Linux; no apt source will be added automatically\n'
+    if [[ "$INSTALL_GUI_APPS" == "1" ]]; then
+      "$REPO_ROOT/scripts/install_ghostty.sh" --dry-run --package-manager "$PACKAGE_MANAGER"
+    fi
     return 0
   fi
 
@@ -161,7 +169,7 @@ install_apt() {
   fi
 
   if [[ "$INSTALL_GUI_APPS" == "1" ]]; then
-    printf 'notice: Ghostty is optional on Linux; install it manually if your distribution supports it.\n'
+    "$REPO_ROOT/scripts/install_ghostty.sh" --yes --package-manager "$PACKAGE_MANAGER"
   fi
 
   return 0
@@ -177,7 +185,9 @@ install_pacman() {
 
   if [[ "$DRY_RUN" == "1" ]]; then
     printf 'dry-run: %s pacman -S --needed %s\n' "$sudo_cmd" "${PACKAGES[*]}"
-    [[ "$INSTALL_GUI_APPS" == "1" ]] && printf 'dry-run: Ghostty is optional; install it manually if available in your repositories\n'
+    if [[ "$INSTALL_GUI_APPS" == "1" ]]; then
+      "$REPO_ROOT/scripts/install_ghostty.sh" --dry-run --package-manager "$PACKAGE_MANAGER"
+    fi
     return 0
   fi
 
@@ -188,7 +198,7 @@ install_pacman() {
   fi
 
   if [[ "$INSTALL_GUI_APPS" == "1" ]]; then
-    printf 'notice: Ghostty is optional; install it manually if available in your repositories.\n'
+    "$REPO_ROOT/scripts/install_ghostty.sh" --yes --package-manager "$PACKAGE_MANAGER"
   fi
 
   return 0
@@ -204,7 +214,9 @@ install_dnf() {
 
   if [[ "$DRY_RUN" == "1" ]]; then
     printf 'dry-run: %s dnf install -y %s\n' "$sudo_cmd" "${PACKAGES[*]}"
-    [[ "$INSTALL_GUI_APPS" == "1" ]] && printf 'dry-run: Ghostty is optional on Linux; no third-party repository will be added automatically\n'
+    if [[ "$INSTALL_GUI_APPS" == "1" ]]; then
+      "$REPO_ROOT/scripts/install_ghostty.sh" --dry-run --package-manager "$PACKAGE_MANAGER"
+    fi
     return 0
   fi
 
@@ -224,7 +236,7 @@ install_dnf() {
   fi
 
   if [[ "$INSTALL_GUI_APPS" == "1" ]]; then
-    printf 'notice: Ghostty is optional on Linux; install it manually if your distribution supports it.\n'
+    "$REPO_ROOT/scripts/install_ghostty.sh" --yes --package-manager "$PACKAGE_MANAGER"
   fi
 
   return 0

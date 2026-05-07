@@ -120,6 +120,11 @@ restored_zshrc_after="$(cat "$TMP_HOME/.zshrc")"
 [[ "$restored_zshrc_before" == "$restored_zshrc_after" ]] || fail "full dry-run changed restored .zshrc"
 printf 'ok: full dry-run made no changes\n\n'
 
+printf 'Test 5b: Ghostty GUI install dry-run does not create files\n'
+HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/scripts/install_ghostty.sh" --dry-run --package-manager brew >/dev/null
+assert_missing "$TMP_HOME/.config/ghostty.extra"
+printf 'ok: Ghostty dry-run made no HOME changes\n\n'
+
 printf 'Test 6: terminal font apply updates LXTerminal config in temporary HOME\n'
 mkdir -p "$TMP_HOME/.config/lxterminal"
 printf '[general]\nfontname=Monospace 10\n' > "$TMP_HOME/.config/lxterminal/lxterminal.conf"

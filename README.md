@@ -65,7 +65,7 @@ Link configs only:
 Install optional GUI apps such as Ghostty on supported platforms:
 
 ```sh
-./install.sh --install-packages --install-gui-apps --backup --yes
+./install.sh --install-packages --install-gui-apps --install-fonts --backup --yes
 ```
 
 Check the result:
@@ -140,6 +140,17 @@ Yazi is handled separately from Linux distro package lists:
 - Linux: `~/.local/share/fonts/NerdFonts/JetBrainsMono`
 
 The font application script supports LXTerminal, Ghostty, Kitty, Foot, and conservative Alacritty defaults. SSH font rendering is controlled by the local terminal app.
+
+## Ghostty
+
+Ghostty is optional GUI software. `--install-gui-apps` uses safe package routes:
+
+- macOS: Homebrew cask
+- Arch Linux: official `pacman` package
+- Debian, Ubuntu, Raspberry Pi OS: enabled `apt` repository first, then Snap
+- Fedora: enabled `dnf` repository first, then Snap
+
+The scripts do not add third-party apt sources, PPAs, COPR repositories, or run community `curl | bash` installers. On Linux, Snap fallback may install `snapd` from the enabled system repositories.
 
 ## Restore
 
