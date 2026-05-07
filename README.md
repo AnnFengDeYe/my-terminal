@@ -109,7 +109,14 @@ Sanitization only edits files under `configs/`. The report is written to `script
 - `packages/debian.txt`, `packages/arch.txt`, `packages/fedora.txt`: Linux CLI packages
 - `packages/*-fonts.txt`: Linux font dependencies
 
-Linux package availability depends on the enabled distribution repositories. The scripts do not add third-party repositories, do not run `curl | bash`, and do not compile unavailable tools automatically. For example, `yazi` may be missing from some Debian or Raspberry Pi OS apt sources.
+Linux package availability depends on the enabled distribution repositories. The scripts do not add third-party repositories and do not run `curl | bash`.
+
+Yazi is handled separately from Linux distro package lists:
+
+- macOS: Homebrew
+- Linux: existing Homebrew first, existing Cargo second, verified official binary fallback where supported
+- The project does not install Homebrew, rustup, or Cargo automatically
+- Cargo fallback uses the official `cargo install --force yazi-build` flow
 
 ## Fonts
 

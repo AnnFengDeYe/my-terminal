@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 TARGET_HOME="${TEST_HOME:-$HOME}"
 
+PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH
+
 FAILURES=0
 WARNINGS=0
 
@@ -165,6 +168,7 @@ main() {
   check_cmd lazygit
   check_cmd nvim
   check_cmd yazi
+  check_cmd ya
   check_cmd ghostty 1
   printf 'note: Ghostty is an optional GUI terminal emulator.\n\n'
 

@@ -189,6 +189,12 @@ main() {
     fi
     printf '\nPackage step:\n'
     "$REPO_ROOT/scripts/install_packages.sh" "${pkg_args[@]}"
+
+    local yazi_args=("--package-manager" "$pm")
+    [[ "$DRY_RUN" == "1" ]] && yazi_args+=("--dry-run")
+    [[ "$YES" == "1" ]] && yazi_args+=("--yes")
+    printf '\nYazi step:\n'
+    "$REPO_ROOT/scripts/install_yazi.sh" "${yazi_args[@]}"
   else
     printf '\nPackage step: not selected; use --install-packages to install software\n'
   fi

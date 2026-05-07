@@ -1,7 +1,4 @@
 fontconfig
-ca-certificates
-curl
-unzip
 xz-utils
 fonts-jetbrains-mono
 fonts-font-awesome

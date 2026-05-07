@@ -1,13 +1,16 @@
 zsh
 zsh-syntax-highlighting
+ca-certificates
+curl
+unzip
 tmux
 starship
 fzf
 zoxide
 eza
 bat
+file
 ripgrep
 fd-find
 lazygit
 neovim
-yazi

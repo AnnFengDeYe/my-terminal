@@ -17,6 +17,16 @@ if [ -d /home/linuxbrew/.linuxbrew/bin ]; then
   export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"
 fi
 
+# Cargo user binaries
+if [ -d "$HOME/.cargo/bin" ]; then
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
+# User-local binaries
+if [ -d "$HOME/.local/bin" ]; then
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+
 # 第三方工具
 export PATH="$HOME/.antigravity/antigravity/bin:$PATH"  # Antigravity
 export STM32CubeMX_PATH="/Applications/STMicroelectronics/STM32CubeMX.app/Contents/Resources"
@@ -241,7 +251,15 @@ fi
 # ------------------------------------------
 
 if command -v yazi >/dev/null 2>&1; then
-  alias y="yazi" # 打开终端文件管理器
+  y() {
+    local tmp cwd
+    tmp="${TMPDIR:-/tmp}/yazi-cwd.$$"
+    yazi "$@" --cwd-file="$tmp"
+    if cwd="$(command cat -- "$tmp" 2>/dev/null)" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+      builtin cd -- "$cwd"
+    fi
+    command rm -f -- "$tmp"
+  }
 fi
 
 # ------------------------------------------
