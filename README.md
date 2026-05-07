@@ -36,7 +36,13 @@ For the simplest guided setup:
 ./setup.sh
 ```
 
-The menu can preview, install, link configs only, run doctor checks, restore backups, or import existing local configs.
+The menu is Chinese by default and can preview, install, check, restore, or open advanced options. Change the default language in `setup.conf`, or run:
+
+```sh
+./setup.sh --lang en
+```
+
+Advanced options include link-only setup, optional GUI apps, local config import, and command reference.
 
 Preview everything:
 

@@ -58,6 +58,13 @@ assert_missing "$TMP_HOME/.zshrc"
 assert_missing "$TMP_HOME/.config"
 printf 'ok: guided setup preview made no changes\n\n'
 
+printf 'Test 1c: guided setup supports Chinese default and English override\n'
+menu_zh="$(printf '0\n' | HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/setup.sh")"
+printf '%s\n' "$menu_zh" | grep -q '终端配置安装器' || fail "expected Chinese setup menu by default"
+menu_en="$(printf '0\n' | HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/setup.sh" --lang en)"
+printf '%s\n' "$menu_en" | grep -q 'Terminal Starter Kit Setup' || fail "expected English setup menu with --lang en"
+printf 'ok: guided setup language selection works\n\n'
+
 printf 'Test 2: link-only with backups in temporary HOME\n'
 mkdir -p "$TMP_HOME/.config/nvim"
 printf 'temporary zshrc\n' > "$TMP_HOME/.zshrc"
