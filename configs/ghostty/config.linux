@@ -6,9 +6,9 @@
 font-size = 14
 font-family = "JetBrainsMono Nerd Font Mono"
 
-# macOS 配置是 110 x 35；Linux 默认减半，适合小屏桌面。
-window-width = 55
-window-height = 18
+# macOS 配置是 110 x 35；Linux/Raspberry Pi 使用 70 x 20，适合小屏桌面。
+window-width = 70
+window-height = 20
 
 # Linux 上显式启用 GTK 原生标题栏，让窗口管理器显示关闭/最小化/最大化按钮。
 window-decoration = client
