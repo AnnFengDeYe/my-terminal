@@ -54,18 +54,9 @@ sudo_prefix() {
 
 read_packages() {
   local file="$1"
-  local line
   PACKAGES=()
 
-  [[ -r "$file" ]] || die "package list not found: $file"
-
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%%#*}"
-    line="${line#"${line%%[![:space:]]*}"}"
-    line="${line%"${line##*[![:space:]]}"}"
-    [[ -n "$line" ]] || continue
-    PACKAGES+=("$line")
-  done < "$file"
+  append_packages "$file"
 }
 
 append_packages() {
