@@ -30,6 +30,14 @@ Cross-platform terminal dotfiles for macOS and Linux. The repository manages cop
 
 ## Quick Start
 
+For the simplest guided setup:
+
+```sh
+./setup.sh
+```
+
+The menu can preview, install, link configs only, run doctor checks, restore backups, or import existing local configs.
+
 Preview everything:
 
 ```sh

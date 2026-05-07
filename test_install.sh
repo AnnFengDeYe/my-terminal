@@ -52,6 +52,12 @@ assert_missing "$TMP_HOME/.zshrc"
 assert_missing "$TMP_HOME/.config"
 printf 'ok: dry-run made no changes\n\n'
 
+printf 'Test 1b: guided setup preview must not create config files\n'
+printf '1\n0\n' | HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/setup.sh" >/dev/null
+assert_missing "$TMP_HOME/.zshrc"
+assert_missing "$TMP_HOME/.config"
+printf 'ok: guided setup preview made no changes\n\n'
+
 printf 'Test 2: link-only with backups in temporary HOME\n'
 mkdir -p "$TMP_HOME/.config/nvim"
 printf 'temporary zshrc\n' > "$TMP_HOME/.zshrc"
