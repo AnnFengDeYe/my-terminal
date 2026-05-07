@@ -155,6 +155,8 @@ The scripts do not add third-party apt sources, PPAs, COPR repositories, or run 
 
 Ghostty config is platform-specific: macOS keeps the original larger window config, while Linux and Raspberry Pi OS link the smaller `configs/ghostty/config.linux` profile.
 
+On Linux, the Ghostty install flow also creates an application-menu launcher and a `~/Desktop/Ghostty.desktop` launcher. The Linux profile enables GTK native titlebars so desktop window controls are visible where the window manager supports them.
+
 ## Restore
 
 Preview restore:

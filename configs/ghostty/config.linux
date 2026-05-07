@@ -10,6 +10,12 @@ font-family = "JetBrainsMono Nerd Font Mono"
 window-width = 55
 window-height = 18
 
+# Linux 上显式启用 GTK 原生标题栏，让窗口管理器显示关闭/最小化/最大化按钮。
+window-decoration = client
+gtk-titlebar = true
+gtk-titlebar-style = native
+gtk-toolbar-style = raised-border
+
 cursor-style = bar
 cursor-style-blink = true
 

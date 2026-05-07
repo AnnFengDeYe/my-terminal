@@ -297,34 +297,40 @@ main() {
 
   if ghostty_installed; then
     log "skip: ghostty is already installed at $(command -v ghostty)"
-    return 0
+  else
+    case "$OS_NAME:$PACKAGE_MANAGER" in
+      macos:brew)
+        install_macos_brew
+        ;;
+      arch:pacman)
+        install_arch_pacman
+        ;;
+      debian:apt|ubuntu:apt|raspberrypi:apt)
+        install_apt_or_snap
+        ;;
+      fedora:dnf)
+        install_dnf_or_snap
+        ;;
+      *:brew)
+        log "notice: Homebrew cask installation is macOS-focused; using Snap fallback on Linux"
+        install_snap_ghostty "$(default_package_manager)"
+        ;;
+      *)
+        if [[ "$OS_NAME" == "linux" || "$OS_NAME" == *linux* ]]; then
+          install_snap_ghostty "$(default_package_manager)"
+        else
+          die "unsupported Ghostty install route for OS=$OS_NAME package-manager=$PACKAGE_MANAGER"
+        fi
+        ;;
+    esac
   fi
 
-  case "$OS_NAME:$PACKAGE_MANAGER" in
-    macos:brew)
-      install_macos_brew
-      ;;
-    arch:pacman)
-      install_arch_pacman
-      ;;
-    debian:apt|ubuntu:apt|raspberrypi:apt)
-      install_apt_or_snap
-      ;;
-    fedora:dnf)
-      install_dnf_or_snap
-      ;;
-    *:brew)
-      log "notice: Homebrew cask installation is macOS-focused; using Snap fallback on Linux"
-      install_snap_ghostty "$(default_package_manager)"
-      ;;
-    *)
-      if [[ "$OS_NAME" == "linux" || "$OS_NAME" == *linux* ]]; then
-        install_snap_ghostty "$(default_package_manager)"
-      else
-        die "unsupported Ghostty install route for OS=$OS_NAME package-manager=$PACKAGE_MANAGER"
-      fi
-      ;;
-  esac
+  if [[ "$OS_NAME" != "macos" ]]; then
+    local desktop_args=()
+    [[ "$DRY_RUN" == "1" ]] && desktop_args+=("--dry-run")
+    [[ "$YES" == "1" ]] && desktop_args+=("--yes")
+    "$SCRIPT_DIR/install_desktop_entries.sh" "${desktop_args[@]}"
+  fi
 }
 
 main "$@"

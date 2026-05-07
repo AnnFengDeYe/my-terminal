@@ -132,6 +132,18 @@ HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/scripts/install_ghostty.sh" -
 assert_missing "$TMP_HOME/.config/ghostty.extra"
 printf 'ok: Ghostty dry-run made no HOME changes\n\n'
 
+printf 'Test 5c: Linux desktop entries install inside temporary HOME only\n'
+mkdir -p "$TMP_HOME/.local/bin"
+printf '#!/usr/bin/env sh\nprintf \"Ghostty test\\n\"\n' > "$TMP_HOME/.local/bin/ghostty"
+chmod +x "$TMP_HOME/.local/bin/ghostty"
+HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" TEST_OS=linux "$REPO_ROOT/scripts/install_desktop_entries.sh" --yes >/dev/null
+[[ -f "$TMP_HOME/.local/share/applications/com.mitchellh.ghostty.desktop" ]] || fail "expected Ghostty app menu entry"
+[[ -f "$TMP_HOME/Desktop/Ghostty.desktop" ]] || fail "expected Ghostty desktop launcher"
+grep -q '^Name=Ghostty$' "$TMP_HOME/.local/share/applications/com.mitchellh.ghostty.desktop" || fail "Ghostty app menu entry missing name"
+grep -q "^Exec=$TMP_HOME/.local/bin/ghostty$" "$TMP_HOME/Desktop/Ghostty.desktop" || fail "Ghostty desktop launcher has wrong exec path"
+[[ -x "$TMP_HOME/Desktop/Ghostty.desktop" ]] || fail "Ghostty desktop launcher should be executable"
+printf 'ok: Linux desktop entries created inside temporary HOME\n\n'
+
 printf 'Test 6: terminal font apply updates LXTerminal config in temporary HOME\n'
 mkdir -p "$TMP_HOME/.config/lxterminal"
 printf '[general]\nfontname=Monospace 10\n' > "$TMP_HOME/.config/lxterminal/lxterminal.conf"
