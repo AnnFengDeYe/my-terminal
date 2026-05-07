@@ -44,7 +44,7 @@ The menu is Chinese by default and can preview, install, check, restore, or open
 
 Advanced options include link-only setup, optional GUI apps, local config import, and command reference.
 
-Preview everything:
+The menu preview is concise: it lists tool, font, and config-link status without writing files. For the detailed low-level dry-run:
 
 ```sh
 ./install.sh --dry-run

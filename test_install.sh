@@ -53,7 +53,9 @@ assert_missing "$TMP_HOME/.config"
 printf 'ok: dry-run made no changes\n\n'
 
 printf 'Test 1b: guided setup preview must not create config files\n'
-printf '1\n0\n' | HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/setup.sh" >/dev/null
+preview_menu="$(printf '1\n0\n' | HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/setup.sh")"
+printf '%s\n' "$preview_menu" | grep -q '安装预览' || fail "expected concise Chinese install preview"
+printf '%s\n' "$preview_menu" | grep -q 'CLI 工具状态' || fail "expected concise CLI status"
 assert_missing "$TMP_HOME/.zshrc"
 assert_missing "$TMP_HOME/.config"
 printf 'ok: guided setup preview made no changes\n\n'
@@ -64,6 +66,12 @@ printf '%s\n' "$menu_zh" | grep -q '终端配置安装器' || fail "expected Chi
 menu_en="$(printf '0\n' | HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/setup.sh" --lang en)"
 printf '%s\n' "$menu_en" | grep -q 'Terminal Starter Kit Setup' || fail "expected English setup menu with --lang en"
 printf 'ok: guided setup language selection works\n\n'
+
+printf 'Test 1d: concise preview supports English override\n'
+preview_en="$(HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/scripts/preview_install.sh" --lang en)"
+printf '%s\n' "$preview_en" | grep -q 'Install Preview' || fail "expected English install preview"
+printf '%s\n' "$preview_en" | grep -q 'CLI tool status' || fail "expected English CLI status"
+printf 'ok: concise preview language selection works\n\n'
 
 printf 'Test 2: link-only with backups in temporary HOME\n'
 mkdir -p "$TMP_HOME/.config/nvim"

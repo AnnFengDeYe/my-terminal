@@ -207,7 +207,7 @@ canceled() {
 }
 
 run_preview() {
-  "$REPO_ROOT/install.sh" --dry-run --install-packages --install-fonts --set-default-shell --backup
+  "$REPO_ROOT/scripts/preview_install.sh" --lang "$LANGUAGE"
 }
 
 run_recommended_install() {
