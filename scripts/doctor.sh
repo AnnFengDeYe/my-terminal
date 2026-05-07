@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 TARGET_HOME="${TEST_HOME:-$HOME}"
 
+# shellcheck source=scripts/config_sources.sh
+. "$SCRIPT_DIR/config_sources.sh"
+
 PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/snap/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export PATH
 
@@ -150,7 +153,13 @@ check_link() {
 }
 
 main() {
-  printf 'Detected OS: %s\n' "$("$SCRIPT_DIR/detect_os.sh")"
+  local os_name
+  local ghostty_source
+
+  os_name="$("$SCRIPT_DIR/detect_os.sh")"
+  ghostty_source="$(select_ghostty_source "$REPO_ROOT" "$os_name")"
+
+  printf 'Detected OS: %s\n' "$os_name"
   printf 'Current shell: %s\n' "${SHELL:-unknown}"
   printf 'Repository: %s\n' "$REPO_ROOT"
   printf 'Target HOME: %s\n\n' "$TARGET_HOME"
@@ -177,7 +186,7 @@ main() {
   check_link "configs/zsh/zshenv" ".zshenv"
   check_link "configs/tmux/tmux.conf" ".tmux.conf"
   check_link "configs/starship/starship.toml" ".config/starship.toml"
-  check_link "configs/ghostty/config" ".config/ghostty/config"
+  check_link "$ghostty_source" ".config/ghostty/config"
   check_link "configs/yazi" ".config/yazi"
   check_link "configs/lazygit/config.yml" ".config/lazygit/config.yml"
   check_link "configs/nvim" ".config/nvim"

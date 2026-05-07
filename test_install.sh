@@ -90,6 +90,13 @@ assert_symlink "$TMP_HOME/.config/ghostty/config"
 assert_symlink "$TMP_HOME/.config/lazygit/config.yml"
 assert_symlink "$TMP_HOME/.config/nvim"
 assert_symlink "$TMP_HOME/.config/yazi"
+os_name="$("$REPO_ROOT/scripts/detect_os.sh")"
+if [[ "$os_name" == "macos" ]]; then
+  expected_ghostty_source="$REPO_ROOT/configs/ghostty/config"
+else
+  expected_ghostty_source="$REPO_ROOT/configs/ghostty/config.linux"
+fi
+[[ "$(readlink "$TMP_HOME/.config/ghostty/config")" == "$expected_ghostty_source" ]] || fail "Ghostty config source mismatch for $os_name"
 assert_backup_exists "$TMP_HOME/.zshrc.backup.*"
 assert_backup_exists "$TMP_HOME/.config/nvim.backup.*"
 printf 'ok: links and backups created inside temporary HOME\n\n'

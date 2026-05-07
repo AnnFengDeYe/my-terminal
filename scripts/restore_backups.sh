@@ -5,6 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 TARGET_HOME="${TEST_HOME:-$HOME}"
 
+# shellcheck source=scripts/config_sources.sh
+. "$SCRIPT_DIR/config_sources.sh"
+
 DRY_RUN=0
 YES=0
 
@@ -180,6 +183,85 @@ restore_one() {
   log "skip: no target or backup for $target"
 }
 
+restore_one_any() {
+  local rel_target="$1"
+  shift
+  local rel_source
+  local target="$TARGET_HOME/$rel_target"
+  local source
+  local source_canon
+  local link_canon
+  local backup=""
+  local has_backup=0
+  local managed_link=0
+
+  ensure_under_home "$target"
+
+  if backup="$(latest_backup_for "$target" 2>/dev/null)"; then
+    has_backup=1
+    ensure_under_home "$backup"
+  fi
+
+  if [[ -L "$target" ]]; then
+    for rel_source in "$@"; do
+      source="$REPO_ROOT/$rel_source"
+      if [[ -e "$source" || -L "$source" ]]; then
+        source_canon="$(canonical_existing_path "$source")"
+        link_canon="$(resolve_link_target "$target" 2>/dev/null || true)"
+        if [[ "$link_canon" == "$source_canon" ]]; then
+          managed_link=1
+          break
+        fi
+      fi
+    done
+  fi
+
+  log "check: $target"
+
+  if [[ "$managed_link" == "1" ]]; then
+    if [[ "$DRY_RUN" == "1" ]]; then
+      log "restore: would unlink repository symlink $target"
+      if [[ "$has_backup" == "1" ]]; then
+        log "restore: would move $backup -> $target"
+      else
+        log "restore: no backup found; target would be left absent"
+      fi
+      return 0
+    fi
+
+    [[ "$YES" == "1" ]] || die "refusing to restore $target without --yes"
+    unlink "$target"
+    log "restore: unlinked $target"
+
+    if [[ "$has_backup" == "1" ]]; then
+      mv "$backup" "$target"
+      log "restore: moved $backup -> $target"
+    else
+      log "restore: no backup found for $target"
+    fi
+    return 0
+  fi
+
+  if [[ ! -e "$target" && ! -L "$target" && "$has_backup" == "1" ]]; then
+    if [[ "$DRY_RUN" == "1" ]]; then
+      log "restore: would move $backup -> $target"
+      return 0
+    fi
+
+    [[ "$YES" == "1" ]] || die "refusing to restore $target without --yes"
+    mv "$backup" "$target"
+    log "restore: moved $backup -> $target"
+    return 0
+  fi
+
+  if [[ -e "$target" || -L "$target" ]]; then
+    log "skip: $target is not a symlink managed by this repository"
+    return 0
+  fi
+
+  log "skip: no target or backup for $target"
+}
+
 main() {
   parse_args "$@"
   ensure_safe_home
@@ -192,12 +274,17 @@ main() {
   log "Target HOME: $TARGET_HOME"
   [[ "$DRY_RUN" == "1" ]] && log "Mode: dry-run"
 
+  local os_name
+  local ghostty_source
+  os_name="$("$SCRIPT_DIR/detect_os.sh")"
+  ghostty_source="$(select_ghostty_source "$REPO_ROOT" "$os_name")"
+
   restore_one "configs/zsh/zshrc" ".zshrc"
   restore_one "configs/zsh/zprofile" ".zprofile"
   restore_one "configs/zsh/zshenv" ".zshenv"
   restore_one "configs/tmux/tmux.conf" ".tmux.conf"
   restore_one "configs/starship/starship.toml" ".config/starship.toml"
-  restore_one "configs/ghostty/config" ".config/ghostty/config"
+  restore_one_any ".config/ghostty/config" "$ghostty_source" "configs/ghostty/config" "configs/ghostty/config.linux"
   restore_one "configs/yazi" ".config/yazi"
   restore_one "configs/lazygit/config.yml" ".config/lazygit/config.yml"
   restore_one "configs/nvim" ".config/nvim"

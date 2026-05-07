@@ -6,6 +6,9 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 TARGET_HOME="${TEST_HOME:-$HOME}"
 LANGUAGE="zh"
 
+# shellcheck source=scripts/config_sources.sh
+. "$SCRIPT_DIR/config_sources.sh"
+
 PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/snap/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export PATH
 
@@ -271,8 +274,10 @@ main() {
 
   local os
   local pm
+  local ghostty_source
   os="$("$SCRIPT_DIR/detect_os.sh")"
   pm="$(detect_default_pm "$os")"
+  ghostty_source="$(select_ghostty_source "$REPO_ROOT" "$os")"
 
   if is_zh; then
     printf '安装预览\n'
@@ -329,7 +334,7 @@ main() {
   config_state "configs/zsh/zshenv" ".zshenv"
   config_state "configs/tmux/tmux.conf" ".tmux.conf"
   config_state "configs/starship/starship.toml" ".config/starship.toml"
-  config_state "configs/ghostty/config" ".config/ghostty/config"
+  config_state "$ghostty_source" ".config/ghostty/config"
   config_state "configs/yazi" ".config/yazi"
   config_state "configs/lazygit/config.yml" ".config/lazygit/config.yml"
   config_state "configs/nvim" ".config/nvim"

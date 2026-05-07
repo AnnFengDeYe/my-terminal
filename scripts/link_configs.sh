@@ -7,6 +7,8 @@ TARGET_HOME="${TEST_HOME:-$HOME}"
 
 # shellcheck source=scripts/backup.sh
 . "$SCRIPT_DIR/backup.sh"
+# shellcheck source=scripts/config_sources.sh
+. "$SCRIPT_DIR/config_sources.sh"
 
 DRY_RUN=0
 YES=0
@@ -215,13 +217,18 @@ main() {
   [[ "$DRY_RUN" == "1" ]] && log "Mode: dry-run"
 
   local failures=0
+  local os_name
+  local ghostty_source
+
+  os_name="$("$SCRIPT_DIR/detect_os.sh")"
+  ghostty_source="$(select_ghostty_source "$REPO_ROOT" "$os_name")"
 
   link_one "configs/zsh/zshrc" ".zshrc" || failures=$((failures + 1))
   link_one "configs/zsh/zprofile" ".zprofile" || failures=$((failures + 1))
   link_one "configs/zsh/zshenv" ".zshenv" || failures=$((failures + 1))
   link_one "configs/tmux/tmux.conf" ".tmux.conf" || failures=$((failures + 1))
   link_one "configs/starship/starship.toml" ".config/starship.toml" || failures=$((failures + 1))
-  link_one "configs/ghostty/config" ".config/ghostty/config" || failures=$((failures + 1))
+  link_one "$ghostty_source" ".config/ghostty/config" || failures=$((failures + 1))
   link_one "configs/yazi" ".config/yazi" || failures=$((failures + 1))
   link_one "configs/lazygit/config.yml" ".config/lazygit/config.yml" || failures=$((failures + 1))
   link_one "configs/nvim" ".config/nvim" || failures=$((failures + 1))

@@ -109,7 +109,8 @@ Sanitization only edits files under `configs/`. The report is written to `script
 - `configs/zsh/zshenv` -> `~/.zshenv`
 - `configs/tmux/tmux.conf` -> `~/.tmux.conf`
 - `configs/starship/starship.toml` -> `~/.config/starship.toml`
-- `configs/ghostty/config` -> `~/.config/ghostty/config`
+- `configs/ghostty/config` -> `~/.config/ghostty/config` on macOS
+- `configs/ghostty/config.linux` -> `~/.config/ghostty/config` on Linux and Raspberry Pi OS
 - `configs/yazi/` -> `~/.config/yazi`
 - `configs/lazygit/config.yml` -> `~/.config/lazygit/config.yml`
 - `configs/nvim/` -> `~/.config/nvim`
@@ -151,6 +152,8 @@ Ghostty is optional GUI software. `--install-gui-apps` uses safe package routes:
 - Fedora: enabled `dnf` repository first, then Snap
 
 The scripts do not add third-party apt sources, PPAs, COPR repositories, or run community `curl | bash` installers. On Linux, Snap fallback may install `snapd` from the enabled system repositories.
+
+Ghostty config is platform-specific: macOS keeps the original larger window config, while Linux and Raspberry Pi OS link the smaller `configs/ghostty/config.linux` profile.
 
 ## Restore
 
