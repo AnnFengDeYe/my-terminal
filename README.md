@@ -6,6 +6,30 @@
 
 支持 macOS、Debian、Ubuntu、Raspberry Pi OS、Arch Linux 和 Fedora。仓库统一管理 CLI 工具、终端字体和 dotfiles 软链接；默认入口不会直接写入系统，所有真实写入操作都需要显式确认，并会在覆盖前备份原配置。
 
+## 🖼️ Workspace 预览
+
+![my-terminal workspace](assets/workspace-layout.jpg)
+
+`workspace_layout.sh` 会创建一个可长期使用的 tmux 工作区，而不是只用于截图的演示画面：
+
+- 底部 **tmux workspace bar** 使用 `1:dev`、`2:ai`、`3:ssh`、`4:logs` 在不同工作上下文之间切换。
+- **`1:dev`**：主开发工作区，包含 `Code` / `Command` / `Files` / `Git` 四个 pane。
+- **`2:ai`**：AI 辅助工作区，可运行 Codex CLI。
+- **`3:ssh`**：远程连接工作区。
+- **`4:logs`**：测试、日志和 watch 命令工作区。
+
+启动当前目录的工作区：
+
+```sh
+./scripts/workspace_layout.sh --reset
+```
+
+为其他项目启动工作区：
+
+```sh
+./scripts/workspace_layout.sh --dir ~/your-project --reset
+```
+
 ## ✨ 核心特性
 
 - **🌍 跨平台安装**：自动识别系统并调用对应包管理器：Homebrew、apt、pacman 或 dnf。Linux 也可以手动指定 Homebrew。
@@ -116,6 +140,8 @@ Linux 可选 Homebrew：
 | 推荐安装，包含 Ghostty | `./install.sh --install-packages --install-gui-apps --install-fonts --set-default-shell --backup --yes` |
 | 只链接配置 | `./install.sh --link-only --backup --yes` |
 | 检查配置 | `./scripts/doctor.sh` |
+| 打开日常 workspace | `./scripts/workspace_layout.sh --reset` |
+| 打开 README 展示布局 | `./scripts/showcase_layout.sh --reset` |
 | 预览恢复 | `./scripts/restore_backups.sh --dry-run` |
 | 执行恢复 | `./scripts/restore_backups.sh --yes` |
 | 预览导入本机配置 | `./scripts/import_existing_configs.sh --dry-run` |
@@ -147,6 +173,7 @@ Linux 可选 Homebrew：
 ├── setup.sh               # 交互式主入口
 ├── install.sh             # 核心安装脚本
 ├── test_install.sh        # 临时 HOME 安全测试
+├── assets/                # README 图片和展示资源
 ├── configs/               # 待链接的 dotfiles
 ├── packages/              # 平台包列表
 ├── scripts/               # doctor、restore、import 等维护脚本

@@ -6,6 +6,30 @@ A cross-platform, restorable, and testable **Terminal Starter Kit** for quickly 
 
 It supports macOS, Debian, Ubuntu, Raspberry Pi OS, Arch Linux, and Fedora. The repository manages CLI tools, terminal fonts, and dotfile symlinks. The default entrypoint does not write to the system directly; all real writes require explicit confirmation, and existing configs are backed up before replacement.
 
+## 🖼️ Workspace Preview
+
+![my-terminal workspace](assets/workspace-layout.jpg)
+
+`workspace_layout.sh` creates a reusable tmux workspace for daily work, not just a screenshot demo:
+
+- The bottom **tmux workspace bar** switches between contexts with `1:dev`, `2:ai`, `3:ssh`, and `4:logs`.
+- **`1:dev`**: the main development workspace with `Code` / `Command` / `Files` / `Git` panes.
+- **`2:ai`**: AI assistant workspace, useful for Codex CLI.
+- **`3:ssh`**: remote session workspace.
+- **`4:logs`**: tests, logs, and watch commands.
+
+Start a workspace for the current directory:
+
+```sh
+./scripts/workspace_layout.sh --reset
+```
+
+Start a workspace for another project:
+
+```sh
+./scripts/workspace_layout.sh --dir ~/your-project --reset
+```
+
 ## ✨ Key Features
 
 - **🌍 Cross-platform install**: detects the OS and uses the matching package manager: Homebrew, apt, pacman, or dnf. Linux can also use Homebrew when explicitly selected.
@@ -116,6 +140,8 @@ During install, configs under `configs/` are symlinked into the target HOME. Exi
 | Recommended install with Ghostty | `./install.sh --install-packages --install-gui-apps --install-fonts --set-default-shell --backup --yes` |
 | Link configs only | `./install.sh --link-only --backup --yes` |
 | Check configuration | `./scripts/doctor.sh` |
+| Open daily workspace | `./scripts/workspace_layout.sh --reset` |
+| Open README showcase layout | `./scripts/showcase_layout.sh --reset` |
 | Preview restore | `./scripts/restore_backups.sh --dry-run` |
 | Run restore | `./scripts/restore_backups.sh --yes` |
 | Preview local config import | `./scripts/import_existing_configs.sh --dry-run` |
@@ -147,6 +173,7 @@ The sanitization report is written to [scripts/sanitize_report.md](./scripts/san
 ├── setup.sh               # interactive entrypoint
 ├── install.sh             # core install script
 ├── test_install.sh        # temporary-HOME safety tests
+├── assets/                # README images and showcase assets
 ├── configs/               # dotfiles to link
 ├── packages/              # platform package lists
 ├── scripts/               # doctor, restore, import, and maintenance scripts
