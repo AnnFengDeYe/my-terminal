@@ -1,0 +1,281 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+
+WORK_DIR="${WORKSPACE_DIR:-$(pwd -P)}"
+SESSION="${WORKSPACE_SESSION:-my-terminal-workspace}"
+RESET=0
+ATTACH=1
+PANE_MODE=""
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/workspace_layout.sh [--dir PATH] [--session NAME] [--reset] [--no-attach]
+
+Create a daily tmux workspace:
+  - window 1: dev
+    - left: nvim
+    - top right: yazi
+    - bottom right: lazygit
+    - bottom: shell
+  - window 2: ai
+  - window 3: ssh
+  - window 4: logs
+
+Options:
+  --dir PATH      Use PATH as the workspace directory. Defaults to current directory.
+  --session NAME  Use a custom tmux session name.
+  --reset         Recreate the session if it already exists.
+  --no-attach     Create the session and print its name without attaching.
+  --help, -h      Show this help.
+
+Environment:
+  WORKSPACE_COLS / WORKSPACE_LINES  Override the initial tmux size.
+EOF
+}
+
+die() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+resolve_dir() {
+  local path="$1"
+
+  [[ -d "$path" ]] || die "not a directory: $path"
+  (cd "$path" && pwd -P)
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dir)
+        [[ $# -ge 2 ]] || die "--dir requires a path"
+        WORK_DIR="$(resolve_dir "$2")"
+        shift 2
+        ;;
+      --session)
+        [[ $# -ge 2 ]] || die "--session requires a name"
+        SESSION="$2"
+        shift 2
+        ;;
+      --reset)
+        RESET=1
+        shift
+        ;;
+      --no-attach)
+        ATTACH=0
+        shift
+        ;;
+      --pane)
+        [[ $# -ge 2 ]] || die "--pane requires a mode"
+        PANE_MODE="$2"
+        shift 2
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown option: $1"
+        ;;
+    esac
+  done
+
+  WORK_DIR="$(resolve_dir "$WORK_DIR")"
+}
+
+exec_shell() {
+  exec "${SHELL:-/bin/sh}"
+}
+
+run_editor() {
+  cd "$WORK_DIR"
+  if command -v nvim >/dev/null 2>&1; then
+    nvim . || true
+    exec_shell
+  fi
+
+  clear 2>/dev/null || true
+  printf 'nvim is not installed. Workspace: %s\n\n' "$WORK_DIR"
+  ls -la
+  exec_shell
+}
+
+run_files() {
+  cd "$WORK_DIR"
+  if command -v yazi >/dev/null 2>&1; then
+    yazi . || true
+    exec_shell
+  fi
+
+  clear 2>/dev/null || true
+  printf 'yazi is not installed. Workspace: %s\n\n' "$WORK_DIR"
+  if command -v eza >/dev/null 2>&1; then
+    eza --tree --level=2 --icons=auto . 2>/dev/null || true
+  else
+    find . -maxdepth 2 -type f | sort | sed -n '1,80p' || true
+  fi
+  exec_shell
+}
+
+run_git() {
+  cd "$WORK_DIR"
+  if command -v lazygit >/dev/null 2>&1; then
+    lazygit || true
+    exec_shell
+  fi
+
+  clear 2>/dev/null || true
+  printf 'lazygit is not installed. Workspace: %s\n\n' "$WORK_DIR"
+  git status --short 2>/dev/null || true
+  printf '\nRecent commits:\n'
+  git log --oneline --decorate -n 8 2>/dev/null || true
+  exec_shell
+}
+
+run_shell() {
+  cd "$WORK_DIR"
+  clear 2>/dev/null || true
+  exec_shell
+}
+
+run_pane_mode() {
+  case "$PANE_MODE" in
+    editor) run_editor ;;
+    files) run_files ;;
+    git) run_git ;;
+    shell) run_shell ;;
+    *) die "unknown pane mode: $PANE_MODE" ;;
+  esac
+}
+
+shell_quote() {
+  printf '%q' "$1"
+}
+
+detect_tmux_size() {
+  local cols="${WORKSPACE_COLS:-${COLUMNS:-}}"
+  local lines="${WORKSPACE_LINES:-${LINES:-}}"
+
+  if [[ -t 1 ]]; then
+    cols="${cols:-$(tput cols 2>/dev/null || true)}"
+    lines="${lines:-$(tput lines 2>/dev/null || true)}"
+  fi
+
+  [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
+  [[ "$lines" =~ ^[0-9]+$ ]] || lines=24
+  printf '%s %s\n' "$cols" "$lines"
+}
+
+explicit_tmux_size() {
+  [[ -n "${WORKSPACE_COLS:-}" || -n "${WORKSPACE_LINES:-}" ]]
+}
+
+attach_or_switch() {
+  if [[ "$ATTACH" != "1" ]]; then
+    printf 'Created tmux session: %s\n' "$SESSION"
+    printf 'Workspace: %s\n' "$WORK_DIR"
+    printf 'Attach with: tmux attach -t %s\n' "$SESSION"
+    return 0
+  fi
+
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux switch-client -t "$SESSION"
+  else
+    tmux attach-session -t "$SESSION"
+  fi
+}
+
+set_tmux_options() {
+  local window_id="$1"
+
+  tmux set-option -t "$SESSION" mouse on >/dev/null
+  tmux set-option -t "$SESSION" status on >/dev/null
+  tmux set-option -t "$SESSION" status-position bottom >/dev/null
+  tmux set-option -t "$SESSION" status-bg "#333333" >/dev/null
+  tmux set-option -t "$SESSION" status-fg white >/dev/null
+  tmux set-option -t "$SESSION" base-index 1 >/dev/null
+  tmux set-window-option -t "$window_id" pane-base-index 1 >/dev/null
+  tmux set-option -t "$SESSION" window-status-format " #I:#W " >/dev/null
+  tmux set-option -t "$SESSION" window-status-current-format " #I:#W " >/dev/null
+  tmux set-option -t "$SESSION" status-left " workspace " >/dev/null
+  tmux set-option -t "$SESSION" status-right " %Y-%m-%d %H:%M " >/dev/null
+  tmux set-window-option -t "$window_id" pane-border-status top >/dev/null
+  tmux set-window-option -t "$window_id" pane-border-format " #{pane_title} " >/dev/null
+  tmux bind-key -n M-1 select-window -t :=1 >/dev/null
+  tmux bind-key -n M-2 select-window -t :=2 >/dev/null
+  tmux bind-key -n M-3 select-window -t :=3 >/dev/null
+  tmux bind-key -n M-4 select-window -t :=4 >/dev/null
+}
+
+create_session() {
+  local bottom
+  local right_bottom
+  local right_top
+  local script_cmd
+  local term_cols
+  local term_lines
+  local top_left
+  local window_id
+
+  command -v tmux >/dev/null 2>&1 || die "tmux is required"
+  script_cmd="$(shell_quote "$SCRIPT_PATH")"
+  if explicit_tmux_size; then
+    read -r term_cols term_lines < <(detect_tmux_size)
+  fi
+
+  if tmux has-session -t "$SESSION" 2>/dev/null; then
+    if [[ "$RESET" == "1" ]]; then
+      tmux kill-session -t "$SESSION"
+    else
+      attach_or_switch
+      return 0
+    fi
+  fi
+
+  if explicit_tmux_size; then
+    tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n dev -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane editor"
+  else
+    tmux new-session -d -s "$SESSION" -n dev -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane editor"
+  fi
+  window_id="$(tmux display-message -p -t "$SESSION" '#{window_id}')"
+  tmux rename-window -t "$window_id" dev
+  if explicit_tmux_size; then
+    tmux resize-window -t "$window_id" -x "$term_cols" -y "$term_lines" >/dev/null
+  fi
+  set_tmux_options "$window_id"
+
+  top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
+  bottom="$(tmux split-window -v -p 32 -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
+  right_top="$(tmux split-window -h -p 36 -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane files")"
+  right_bottom="$(tmux split-window -v -p 50 -P -F '#{pane_id}' -t "$right_top" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane git")"
+
+  tmux select-pane -t "$top_left" -T "nvim"
+  tmux select-pane -t "$right_top" -T "yazi"
+  tmux select-pane -t "$right_bottom" -T "lazygit"
+  tmux select-pane -t "$bottom" -T "shell"
+
+  tmux new-window -d -t "$SESSION" -n ai -c "$WORK_DIR"
+  tmux new-window -d -t "$SESSION" -n ssh -c "$WORK_DIR"
+  tmux new-window -d -t "$SESSION" -n logs -c "$WORK_DIR"
+  tmux move-window -r -t "$SESSION"
+  tmux select-window -t "$window_id"
+  tmux select-pane -t "$top_left"
+
+  attach_or_switch
+}
+
+main() {
+  parse_args "$@"
+
+  if [[ -n "$PANE_MODE" ]]; then
+    run_pane_mode
+  fi
+
+  create_session
+}
+
+main "$@"

@@ -30,6 +30,9 @@ background-blur-radius = 20
 
 macos-titlebar-style = transparent
 
+# 左 Option 作为终端 Alt 键，右 Option 保留 macOS 特殊字符输入
+macos-option-as-alt = left
+
 
 # 3. 快捷键：配置热重载
 keybind = ctrl+shift+r=reload_config
