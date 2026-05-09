@@ -32,7 +32,7 @@ Options:
   --help, -h      Show this help.
 
 Environment:
-  WORKSPACE_COLS / WORKSPACE_LINES  Override the initial tmux size.
+  WORKSPACE_COLS / WORKSPACE_LINES  Override the detected tmux size.
 EOF
 }
 
@@ -157,28 +157,114 @@ shell_quote() {
 }
 
 detect_tmux_size() {
-  local cols="${WORKSPACE_COLS:-${COLUMNS:-}}"
-  local lines="${WORKSPACE_LINES:-${LINES:-}}"
+  local cols="${WORKSPACE_COLS:-}"
+  local detected_cols
+  local detected_lines
+  local lines="${WORKSPACE_LINES:-}"
 
-  if [[ -t 1 ]]; then
-    cols="${cols:-$(tput cols 2>/dev/null || true)}"
-    lines="${lines:-$(tput lines 2>/dev/null || true)}"
+  if [[ -z "$cols" || -z "$lines" ]] && [[ -n "${TMUX:-}" ]]; then
+    if read -r detected_cols detected_lines < <(tmux display-message -p '#{client_width} #{client_height}' 2>/dev/null); then
+      [[ "$detected_cols" =~ ^[0-9]+$ ]] && cols="${cols:-$detected_cols}"
+      [[ "$detected_lines" =~ ^[0-9]+$ ]] && lines="${lines:-$detected_lines}"
+    fi
   fi
+
+  if [[ -z "$cols" || -z "$lines" ]] && [[ -t 1 ]]; then
+    if read -r detected_lines detected_cols < <(stty size 2>/dev/null); then
+      [[ "$detected_cols" =~ ^[0-9]+$ ]] && cols="${cols:-$detected_cols}"
+      [[ "$detected_lines" =~ ^[0-9]+$ ]] && lines="${lines:-$detected_lines}"
+    fi
+  fi
+
+  if [[ -z "$cols" || -z "$lines" ]] && [[ -t 1 ]]; then
+    detected_cols="$(tput cols 2>/dev/null || true)"
+    detected_lines="$(tput lines 2>/dev/null || true)"
+    [[ "$detected_cols" =~ ^[0-9]+$ ]] && cols="${cols:-$detected_cols}"
+    [[ "$detected_lines" =~ ^[0-9]+$ ]] && lines="${lines:-$detected_lines}"
+  fi
+
+  cols="${cols:-${COLUMNS:-}}"
+  lines="${lines:-${LINES:-}}"
 
   [[ "$cols" =~ ^[0-9]+$ ]] || cols=80
   [[ "$lines" =~ ^[0-9]+$ ]] || lines=24
   printf '%s %s\n' "$cols" "$lines"
 }
 
-explicit_tmux_size() {
-  [[ -n "${WORKSPACE_COLS:-}" || -n "${WORKSPACE_LINES:-}" ]]
+workspace_window_target() {
+  tmux display-message -p -t "$SESSION:dev" '#{window_id}' 2>/dev/null \
+    || tmux display-message -p -t "$SESSION" '#{window_id}' 2>/dev/null \
+    || true
 }
 
-should_set_tmux_size() {
-  explicit_tmux_size || [[ "$ATTACH" != "1" ]] || [[ ! -t 1 ]]
+pane_id_by_title() {
+  local pane_id
+  local pane_title
+  local title="$2"
+  local window_id="$1"
+
+  while read -r pane_id pane_title; do
+    if [[ "$pane_title" == "$title" ]]; then
+      printf '%s\n' "$pane_id"
+      return 0
+    fi
+  done < <(tmux list-panes -t "$window_id" -F '#{pane_id} #{pane_title}' 2>/dev/null)
+
+  return 1
+}
+
+fit_pane_layout() {
+  local bottom_height
+  local git_pane
+  local pane_area_height
+  local right_bottom_height
+  local right_width
+  local shell_pane
+  local term_cols
+  local term_lines
+  local window_id="$1"
+  local yazi_pane
+
+  read -r term_cols term_lines < <(detect_tmux_size)
+
+  yazi_pane="$(pane_id_by_title "$window_id" yazi || true)"
+  shell_pane="$(pane_id_by_title "$window_id" shell || true)"
+  git_pane="$(pane_id_by_title "$window_id" lazygit || true)"
+  [[ -n "$yazi_pane" && -n "$shell_pane" && -n "$git_pane" ]] || return 0
+
+  pane_area_height=$((term_lines > 1 ? term_lines - 1 : term_lines))
+  right_width=$(((term_cols - 1) * 36 / 100))
+  bottom_height=$((pane_area_height * 32 / 100))
+  right_bottom_height=$(((pane_area_height - 1) / 2))
+
+  ((right_width < 24)) && right_width=24
+  ((bottom_height < 6)) && bottom_height=6
+  ((right_bottom_height < 6)) && right_bottom_height=6
+
+  tmux select-layout -E -t "$window_id" >/dev/null 2>&1 || true
+  tmux resize-pane -t "$yazi_pane" -x "$right_width" >/dev/null 2>&1 || true
+  tmux resize-pane -t "$shell_pane" -y "$bottom_height" >/dev/null 2>&1 || true
+  tmux resize-pane -t "$git_pane" -y "$right_bottom_height" >/dev/null 2>&1 || true
+}
+
+fit_workspace_to_terminal() {
+  local target_window="${1:-}"
+  local term_cols
+  local term_lines
+
+  target_window="${target_window:-$(workspace_window_target)}"
+  [[ -n "$target_window" ]] || return 0
+
+  read -r term_cols term_lines < <(detect_tmux_size)
+  tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
+  tmux resize-window -t "$target_window" -x "$term_cols" -y "$term_lines" >/dev/null 2>&1 || true
+  tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
+  fit_pane_layout "$target_window"
 }
 
 attach_or_switch() {
+  fit_workspace_to_terminal
+
   if [[ "$ATTACH" != "1" ]]; then
     printf 'Created tmux session: %s\n' "$SESSION"
     printf 'Workspace: %s\n' "$WORK_DIR"
@@ -207,8 +293,10 @@ set_tmux_options() {
   tmux set-option -t "$SESSION" window-status-current-format " #I:#W " >/dev/null
   tmux set-option -t "$SESSION" status-left " workspace " >/dev/null
   tmux set-option -t "$SESSION" status-right " %Y-%m-%d %H:%M " >/dev/null
+  tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
   tmux set-window-option -t "$window_id" pane-border-status top >/dev/null
   tmux set-window-option -t "$window_id" pane-border-format " #{pane_title} " >/dev/null
+  tmux set-window-option -t "$window_id" aggressive-resize on >/dev/null 2>&1 || true
   tmux bind-key -n M-1 select-window -t :=1 >/dev/null
   tmux bind-key -n M-2 select-window -t :=2 >/dev/null
   tmux bind-key -n M-3 select-window -t :=3 >/dev/null
@@ -227,9 +315,7 @@ create_session() {
 
   command -v tmux >/dev/null 2>&1 || die "tmux is required"
   script_cmd="$(shell_quote "$SCRIPT_PATH")"
-  if should_set_tmux_size; then
-    read -r term_cols term_lines < <(detect_tmux_size)
-  fi
+  read -r term_cols term_lines < <(detect_tmux_size)
 
   if tmux has-session -t "$SESSION" 2>/dev/null; then
     if [[ "$RESET" == "1" ]]; then
@@ -240,14 +326,11 @@ create_session() {
     fi
   fi
 
-  if should_set_tmux_size; then
-    tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n dev -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane editor"
-  else
-    tmux new-session -d -s "$SESSION" -n dev -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane editor"
-  fi
+  tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n dev -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane editor"
   window_id="$(tmux display-message -p -t "$SESSION" '#{window_id}')"
   tmux rename-window -t "$window_id" dev
   set_tmux_options "$window_id"
+  fit_workspace_to_terminal "$window_id"
 
   top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
   right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane files")"

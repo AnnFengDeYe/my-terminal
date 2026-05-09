@@ -54,7 +54,11 @@ jobs:
           }
           trap cleanup EXIT
 
-          ./scripts/workspace_layout.sh --session ci-workspace --reset --no-attach
+          WORKSPACE_COLS=80 WORKSPACE_LINES=24 ./scripts/workspace_layout.sh --session ci-workspace --reset --no-attach
+          ./scripts/workspace_layout.sh --session ci-workspace --no-attach
+          test "$(tmux display-message -p -t ci-workspace:1 '#{window_width}x#{window_height}')" = "120x36"
+          test "$(tmux list-panes -t ci-workspace:1 -F '#{pane_title} #{pane_width} #{pane_height}' | awk '$1 == "nvim" { print ($2 >= 70 && $3 >= 20) ? "ok" : "bad" }')" = "ok"
+          test "$(tmux list-panes -t ci-workspace:1 -F '#{pane_title} #{pane_width} #{pane_height}' | awk '$1 == "yazi" { print ($2 >= 40 && $3 >= 15) ? "ok" : "bad" }')" = "ok"
           test "$(tmux list-windows -t ci-workspace | wc -l | tr -d ' ')" = "4"
           test "$(tmux list-panes -t ci-workspace:1 | wc -l | tr -d ' ')" = "4"
 

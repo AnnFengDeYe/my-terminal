@@ -107,8 +107,11 @@ if [ -z "${MY_TERMINAL_HOME:-}" ]; then
   unset _my_terminal_zshrc _my_terminal_root
 fi
 
+unalias workplace 2>/dev/null || true
 if [ -n "${MY_TERMINAL_HOME:-}" ] && [ -x "$MY_TERMINAL_HOME/scripts/workspace_layout.sh" ]; then
-  alias workplace='"$MY_TERMINAL_HOME"/scripts/workspace_layout.sh'
+  workplace() {
+    "$MY_TERMINAL_HOME/scripts/workspace_layout.sh" "$@"
+  }
 fi
 
 
@@ -230,18 +233,6 @@ if command -v fzf >/dev/null 2>&1; then
 fi
 
 # ------------------------------------------
-# zsh-syntax-highlighting：命令输入高亮
-# ------------------------------------------
-
-if command -v brew >/dev/null 2>&1; then
-  ZSH_HIGHLIGHT_PATH="$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-elif [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
-  ZSH_HIGHLIGHT_PATH="/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-fi
-
-[ -n "$ZSH_HIGHLIGHT_PATH" ] && [ -f "$ZSH_HIGHLIGHT_PATH" ] && source "$ZSH_HIGHLIGHT_PATH"
-
-# ------------------------------------------
 # fd：现代 find 替代
 # ------------------------------------------
 
@@ -317,3 +308,15 @@ fi
 if command -v starship >/dev/null 2>&1; then
   eval "$(starship init zsh)"
 fi
+
+# ------------------------------------------
+# zsh-syntax-highlighting：命令输入高亮
+# ------------------------------------------
+
+if command -v brew >/dev/null 2>&1; then
+  ZSH_HIGHLIGHT_PATH="$(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+elif [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
+  ZSH_HIGHLIGHT_PATH="/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+fi
+
+[ -n "$ZSH_HIGHLIGHT_PATH" ] && [ -f "$ZSH_HIGHLIGHT_PATH" ] && source "$ZSH_HIGHLIGHT_PATH"

@@ -37,6 +37,8 @@ workplace
 
 `workplace` starts or enters the daily workspace for the current directory. Use `workplace --reset` when you want to recreate the session.
 
+On startup, it detects the current terminal size and fits the tmux workspace to the full terminal window. When entering an existing workspace, it also reapplies the 4-pane layout so old dimensions do not leave blank padding. Set `WORKSPACE_COLS` / `WORKSPACE_LINES` when you need a fixed size.
+
 Start a workspace for another project:
 
 ```sh
