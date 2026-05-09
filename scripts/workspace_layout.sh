@@ -174,6 +174,10 @@ explicit_tmux_size() {
   [[ -n "${WORKSPACE_COLS:-}" || -n "${WORKSPACE_LINES:-}" ]]
 }
 
+should_set_tmux_size() {
+  explicit_tmux_size || [[ ! -t 1 ]]
+}
+
 attach_or_switch() {
   if [[ "$ATTACH" != "1" ]]; then
     printf 'Created tmux session: %s\n' "$SESSION"
@@ -223,7 +227,7 @@ create_session() {
 
   command -v tmux >/dev/null 2>&1 || die "tmux is required"
   script_cmd="$(shell_quote "$SCRIPT_PATH")"
-  if explicit_tmux_size; then
+  if should_set_tmux_size; then
     read -r term_cols term_lines < <(detect_tmux_size)
   fi
 
@@ -236,14 +240,14 @@ create_session() {
     fi
   fi
 
-  if explicit_tmux_size; then
+  if should_set_tmux_size; then
     tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n dev -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane editor"
   else
     tmux new-session -d -s "$SESSION" -n dev -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane editor"
   fi
   window_id="$(tmux display-message -p -t "$SESSION" '#{window_id}')"
   tmux rename-window -t "$window_id" dev
-  if explicit_tmux_size; then
+  if should_set_tmux_size; then
     tmux resize-window -t "$window_id" -x "$term_cols" -y "$term_lines" >/dev/null
   fi
   set_tmux_options "$window_id"
