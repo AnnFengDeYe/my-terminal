@@ -193,7 +193,7 @@ explicit_tmux_size() {
 }
 
 should_set_tmux_size() {
-  explicit_tmux_size || [[ ! -t 1 ]]
+  explicit_tmux_size || [[ "$ATTACH" != "1" ]] || [[ ! -t 1 ]]
 }
 
 attach_or_switch() {
