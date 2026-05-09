@@ -1,5 +1,7 @@
 # 🚀 my-terminal
 
+[![CI](https://github.com/AnnFengDeYe/my-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/AnnFengDeYe/my-terminal/actions/workflows/ci.yml)
+
 **Language / 语言**: [English](README.en.md) | [中文](README.md)
 
 A cross-platform, restorable, and testable **Terminal Starter Kit** for quickly deploying a ready-to-use terminal environment.
@@ -35,7 +37,7 @@ Start a workspace for another project:
 - **🌍 Cross-platform install**: detects the OS and uses the matching package manager: Homebrew, apt, pacman, or dnf. Linux can also use Homebrew when explicitly selected.
 - **🛡️ Safety first**: preview mode is read-only. It does not create files, install packages, or create symlinks. Real writes require `--yes`, and replacing existing configs requires `--backup`.
 - **🧩 Restorable configs**: existing configs are backed up next to the original target, for example `~/.zshrc.backup.20260507-160000`.
-- **🧪 Sandboxed tests**: `test_install.sh` uses a temporary HOME to verify link, backup, restore, and dry-run behavior without real package installation.
+- **🧪 Automated tests**: GitHub Actions runs Bash syntax checks, ShellCheck, temporary-HOME safety tests, and tmux workspace / showcase smoke tests.
 - **🎭 Privacy sanitization**: existing local configs can be imported into repository copies, with sensitive data sanitized only inside the repository.
 
 ## ⚡ Quick Start

@@ -1,5 +1,7 @@
 # 🚀 my-terminal
 
+[![CI](https://github.com/AnnFengDeYe/my-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/AnnFengDeYe/my-terminal/actions/workflows/ci.yml)
+
 **语言 / Language**: [中文](README.md) | [English](README.en.md)
 
 一个跨平台、可恢复、可测试的 **Terminal Starter Kit**，用于快速部署一套开箱即用的高效终端环境。
@@ -35,7 +37,7 @@
 - **🌍 跨平台安装**：自动识别系统并调用对应包管理器：Homebrew、apt、pacman 或 dnf。Linux 也可以手动指定 Homebrew。
 - **🛡️ 安全优先**：预览模式只读，不创建文件、不安装软件、不创建软链接。真实写入必须带 `--yes`，覆盖已有配置必须带 `--backup`。
 - **🧩 可恢复配置**：原有配置会备份到同目录，例如 `~/.zshrc.backup.20260507-160000`。
-- **🧪 沙盒测试**：`test_install.sh` 使用临时 HOME 验证链接、备份、恢复和 dry-run 逻辑，不执行真实包安装。
+- **🧪 自动化测试**：GitHub Actions 会运行 Bash 语法检查、ShellCheck、临时 HOME 安全测试，以及 tmux workspace / showcase smoke test。
 - **🎭 隐私脱敏**：可将当前本机配置导入仓库副本，并只在仓库内执行敏感信息脱敏。
 
 ## ⚡ 快速开始
