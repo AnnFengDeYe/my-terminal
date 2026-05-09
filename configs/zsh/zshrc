@@ -42,7 +42,7 @@ export STM32CubeMX_PATH="/Applications/STMicroelectronics/STM32CubeMX.app/Conten
 # ==========================================
 
 # 固定显示名：不依赖系统用户名；可在私有环境中覆盖
-export STARSHIP_DISPLAY_NAME="${STARSHIP_DISPLAY_NAME:-terminal}"
+export STARSHIP_DISPLAY_NAME="${STARSHIP_DISPLAY_NAME:-user}"
 
 # 根据系统类型设置图标
 case "$(uname -s)" in
