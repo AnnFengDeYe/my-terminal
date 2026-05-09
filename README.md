@@ -173,6 +173,7 @@ Linux 可选 Homebrew：
 ├── setup.sh               # 交互式主入口
 ├── install.sh             # 核心安装脚本
 ├── test_install.sh        # 临时 HOME 安全测试
+├── LICENSE                # MIT License
 ├── assets/                # README 图片和展示资源
 ├── configs/               # 待链接的 dotfiles
 ├── packages/              # 平台包列表
@@ -181,3 +182,7 @@ Linux 可选 Homebrew：
 ├── Brewfile.fonts         # Homebrew 字体依赖
 └── Brewfile.macos         # macOS 专属依赖
 ```
+
+## 📄 License
+
+本项目使用 [MIT License](./LICENSE)。

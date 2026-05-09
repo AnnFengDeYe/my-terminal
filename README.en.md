@@ -173,6 +173,7 @@ The sanitization report is written to [scripts/sanitize_report.md](./scripts/san
 ├── setup.sh               # interactive entrypoint
 ├── install.sh             # core install script
 ├── test_install.sh        # temporary-HOME safety tests
+├── LICENSE                # MIT License
 ├── assets/                # README images and showcase assets
 ├── configs/               # dotfiles to link
 ├── packages/              # platform package lists
@@ -181,3 +182,7 @@ The sanitization report is written to [scripts/sanitize_report.md](./scripts/san
 ├── Brewfile.fonts         # Homebrew font dependencies
 └── Brewfile.macos         # macOS-only dependencies
 ```
+
+## 📄 License
+
+This project is licensed under the [MIT License](./LICENSE).
