@@ -267,9 +267,9 @@ create_session() {
   set_tmux_options "$window_id"
 
   top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
-  bottom="$(tmux split-window -v -p 32 -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane prompt")"
-  right_top="$(tmux split-window -h -p 36 -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane files")"
-  right_bottom="$(tmux split-window -v -p 50 -P -F '#{pane_id}' -t "$right_top" -c "$REPO_ROOT" "$script_cmd --pane git")"
+  bottom="$(tmux split-window -v -l 32% -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane prompt")"
+  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane files")"
+  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$REPO_ROOT" "$script_cmd --pane git")"
 
   tmux select-pane -t "$top_left" -T "nvim / LazyVim"
   tmux select-pane -t "$right_top" -T "yazi files"
