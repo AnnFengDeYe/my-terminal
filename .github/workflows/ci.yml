@@ -12,10 +12,19 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck tmux
+
       - name: Bash syntax check
         run: |
           bash -n setup.sh install.sh test_install.sh
           bash -n scripts/*.sh
+
+      - name: ShellCheck
+        run: |
+          shellcheck --severity=warning -x setup.sh install.sh test_install.sh scripts/*.sh
 
       - name: Run install safety tests
         run: ./test_install.sh
@@ -30,3 +39,21 @@ jobs:
 
       - name: Check README assets
         run: test -f assets/workspace-layout.jpg
+
+      - name: Tmux layout smoke tests
+        env:
+          TERM: xterm-256color
+        run: |
+          cleanup() {
+            tmux kill-session -t ci-workspace 2>/dev/null || true
+            tmux kill-session -t ci-showcase 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          ./scripts/workspace_layout.sh --session ci-workspace --reset --no-attach
+          test "$(tmux list-windows -t ci-workspace | wc -l | tr -d ' ')" = "4"
+          test "$(tmux list-panes -t ci-workspace:1 | wc -l | tr -d ' ')" = "4"
+
+          ./scripts/showcase_layout.sh --session ci-showcase --reset --no-attach
+          test "$(tmux list-windows -t ci-showcase | wc -l | tr -d ' ')" = "4"
+          test "$(tmux list-panes -t ci-showcase:1 | wc -l | tr -d ' ')" = "4"

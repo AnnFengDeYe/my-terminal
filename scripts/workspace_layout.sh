@@ -16,10 +16,10 @@ Usage: scripts/workspace_layout.sh [--dir PATH] [--session NAME] [--reset] [--no
 
 Create a daily tmux workspace:
   - window 1: dev
-    - left: nvim
-    - top right: yazi
-    - bottom left: shell
-    - right: yazi / lazygit
+    - left top: nvim
+    - left bottom: shell
+    - right top: yazi
+    - right bottom: lazygit
   - window 2: ai
   - window 3: ssh
   - window 4: logs
