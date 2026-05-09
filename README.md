@@ -29,6 +29,14 @@
 ./scripts/workspace_layout.sh --reset
 ```
 
+如果已通过本仓库加载 zsh 配置，可以直接使用快速命令：
+
+```sh
+workplace
+```
+
+`workplace` 会启动或进入当前目录的日常 workspace；需要重建会话时可运行 `workplace --reset`。
+
 为其他项目启动工作区：
 
 ```sh
@@ -145,7 +153,8 @@ Linux 可选 Homebrew：
 | 推荐安装，包含 Ghostty | `./install.sh --install-packages --install-gui-apps --install-fonts --set-default-shell --backup --yes` |
 | 只链接配置 | `./install.sh --link-only --backup --yes` |
 | 检查配置 | `./scripts/doctor.sh` |
-| 打开日常 workspace | `./scripts/workspace_layout.sh --reset` |
+| 快速进入日常 workspace | `workplace` |
+| 重建日常 workspace | `workplace --reset` 或 `./scripts/workspace_layout.sh --reset` |
 | 打开 README 展示布局 | `./scripts/showcase_layout.sh --reset` |
 | 预览恢复 | `./scripts/restore_backups.sh --dry-run` |
 | 执行恢复 | `./scripts/restore_backups.sh --yes` |

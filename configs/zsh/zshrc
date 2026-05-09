@@ -93,6 +93,24 @@ if [ -d "$HOME/projects" ]; then
   alias coding="cd $HOME/projects"
 fi
 
+# my-terminal：快速进入日常 workspace；仓库路径不标准时可覆盖 MY_TERMINAL_HOME
+if [ -z "${MY_TERMINAL_HOME:-}" ]; then
+  _my_terminal_zshrc="${${(%):-%N}:A}"
+  _my_terminal_root="${_my_terminal_zshrc:h:h:h}"
+  if [ -x "$_my_terminal_root/scripts/workspace_layout.sh" ]; then
+    export MY_TERMINAL_HOME="$_my_terminal_root"
+  elif [ -x "$HOME/my-terminal/scripts/workspace_layout.sh" ]; then
+    export MY_TERMINAL_HOME="$HOME/my-terminal"
+  elif [ -x "$HOME/projects/my-terminal/scripts/workspace_layout.sh" ]; then
+    export MY_TERMINAL_HOME="$HOME/projects/my-terminal"
+  fi
+  unset _my_terminal_zshrc _my_terminal_root
+fi
+
+if [ -n "${MY_TERMINAL_HOME:-}" ] && [ -x "$MY_TERMINAL_HOME/scripts/workspace_layout.sh" ]; then
+  alias workplace='"$MY_TERMINAL_HOME"/scripts/workspace_layout.sh'
+fi
+
 
 # ------------------------------------------
 # eza：现代 ls / tree 替代

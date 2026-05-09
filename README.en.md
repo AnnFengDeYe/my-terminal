@@ -29,6 +29,14 @@ Start a workspace for the current directory:
 ./scripts/workspace_layout.sh --reset
 ```
 
+If the zsh config from this repository is loaded, use the shortcut command:
+
+```sh
+workplace
+```
+
+`workplace` starts or enters the daily workspace for the current directory. Use `workplace --reset` when you want to recreate the session.
+
 Start a workspace for another project:
 
 ```sh
@@ -145,7 +153,8 @@ During install, configs under `configs/` are symlinked into the target HOME. Exi
 | Recommended install with Ghostty | `./install.sh --install-packages --install-gui-apps --install-fonts --set-default-shell --backup --yes` |
 | Link configs only | `./install.sh --link-only --backup --yes` |
 | Check configuration | `./scripts/doctor.sh` |
-| Open daily workspace | `./scripts/workspace_layout.sh --reset` |
+| Quickly enter daily workspace | `workplace` |
+| Recreate daily workspace | `workplace --reset` or `./scripts/workspace_layout.sh --reset` |
 | Open README showcase layout | `./scripts/showcase_layout.sh --reset` |
 | Preview restore | `./scripts/restore_backups.sh --dry-run` |
 | Run restore | `./scripts/restore_backups.sh --yes` |
