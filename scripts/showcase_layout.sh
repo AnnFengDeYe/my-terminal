@@ -264,9 +264,6 @@ create_session() {
   fi
   window_id="$(tmux display-message -p -t "$SESSION" '#{window_id}')"
   tmux rename-window -t "$window_id" dev
-  if should_set_tmux_size; then
-    tmux resize-window -t "$window_id" -x "$term_cols" -y "$term_lines" >/dev/null
-  fi
   set_tmux_options "$window_id"
 
   top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
