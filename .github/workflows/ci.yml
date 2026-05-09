@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Bash syntax check
+        run: |
+          bash -n setup.sh install.sh test_install.sh
+          bash -n scripts/*.sh
+
+      - name: Run install safety tests
+        run: ./test_install.sh
+
+      - name: Check help commands
+        run: |
+          ./setup.sh --help
+          ./install.sh --help
+          ./scripts/preview_install.sh --help
+          ./scripts/showcase_layout.sh --help
+          ./scripts/workspace_layout.sh --help
+
+      - name: Check README assets
+        run: test -f assets/workspace-layout.jpg
