@@ -32,8 +32,10 @@ validate_backup_target() {
 
 next_backup_path() {
   local target="$1"
-  local backup="${target}.backup.$(timestamp)"
+  local backup
   local i=1
+
+  backup="${target}.backup.$(timestamp)"
 
   while [[ -e "$backup" || -L "$backup" ]]; do
     backup="${target}.backup.$(timestamp).$i"
