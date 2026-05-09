@@ -1,6 +1,9 @@
 # 🚀 my-terminal
 
 [![CI](https://github.com/AnnFengDeYe/my-terminal/actions/workflows/ci.yml/badge.svg)](https://github.com/AnnFengDeYe/my-terminal/actions/workflows/ci.yml)
+![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?logo=gnu-bash&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Raspberry%20Pi-blue)
+![License](https://img.shields.io/github/license/AnnFengDeYe/my-terminal)
 
 **Language / 语言**: [English](README.en.md) | [中文](README.md)
 
