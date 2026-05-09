@@ -5,7 +5,7 @@
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Raspberry%20Pi-blue)
 ![License](https://img.shields.io/github/license/AnnFengDeYe/my-terminal)
 
-**语言 / Language**: [中文](README.md) | [English](README.en.md)
+[中文](README.md) | [English](README.en.md)
 
 一个跨平台、可恢复、可测试的 **Terminal Starter Kit**，用于快速部署一套开箱即用的高效终端环境。
 

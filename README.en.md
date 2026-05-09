@@ -5,7 +5,7 @@
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Raspberry%20Pi-blue)
 ![License](https://img.shields.io/github/license/AnnFengDeYe/my-terminal)
 
-**Language / 语言**: [English](README.en.md) | [中文](README.md)
+[English](README.en.md) | [中文](README.md)
 
 A cross-platform, restorable, and testable **Terminal Starter Kit** for quickly deploying a ready-to-use terminal environment.
 
