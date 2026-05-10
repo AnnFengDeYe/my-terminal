@@ -57,10 +57,22 @@ jobs:
           WORKSPACE_COLS=80 WORKSPACE_LINES=24 ./scripts/workspace_layout.sh --session ci-workspace --reset --no-attach
           ./scripts/workspace_layout.sh --session ci-workspace --no-attach
           test "$(tmux display-message -p -t ci-workspace:1 '#{window_width}x#{window_height}')" = "120x36"
+          test "$(tmux display-message -p -t ci-workspace:2 '#{window_width}x#{window_height}')" = "120x36"
+          test "$(tmux display-message -p -t ci-workspace:3 '#{window_width}x#{window_height}')" = "120x36"
+          test "$(tmux show-options -t ci-workspace -qv window-size)" = "latest"
+          test "$(tmux show-window-options -t ci-workspace:2 -v aggressive-resize)" = "on"
+          test "$(tmux show-window-options -t ci-workspace:3 -v aggressive-resize)" = "on"
+          test "$(tmux show-window-options -t ci-workspace:4 -v aggressive-resize)" = "on"
           test "$(tmux list-panes -t ci-workspace:1 -F '#{pane_title} #{pane_width} #{pane_height}' | awk '$1 == "nvim" { print ($2 >= 70 && $3 >= 20) ? "ok" : "bad" }')" = "ok"
           test "$(tmux list-panes -t ci-workspace:1 -F '#{pane_title} #{pane_width} #{pane_height}' | awk '$1 == "yazi" { print ($2 >= 40 && $3 >= 15) ? "ok" : "bad" }')" = "ok"
           test "$(tmux list-windows -t ci-workspace | wc -l | tr -d ' ')" = "4"
           test "$(tmux list-panes -t ci-workspace:1 | wc -l | tr -d ' ')" = "4"
+          test "$(tmux list-panes -t ci-workspace:2 | wc -l | tr -d ' ')" = "2"
+          test "$(tmux list-panes -t ci-workspace:3 | wc -l | tr -d ' ')" = "4"
+          test "$(tmux list-panes -t ci-workspace:2 -F '#{pane_title}' | tr '\n' ' ')" = "agent-1 agent-2 "
+          test "$(tmux list-panes -t ci-workspace:3 -F '#{pane_title}' | tr '\n' ' ')" = "ssh-1 ssh-3 ssh-2 ssh-4 "
+          tmux show-hooks -t ci-workspace client-resized | grep -q -- '--fit-only'
+          tmux show-hooks -t ci-workspace after-select-window | grep -q -- '--fit-only'
 
           ./scripts/showcase_layout.sh --session ci-showcase --reset --no-attach
           test "$(tmux list-windows -t ci-showcase | wc -l | tr -d ' ')" = "4"
