@@ -19,8 +19,8 @@ It supports macOS, Debian, Ubuntu, Raspberry Pi OS, Arch Linux, and Fedora. The 
 
 - The bottom **tmux workspace bar** switches between contexts with `1:dev`, `2:ai`, `3:ssh`, and `4:logs`.
 - **`1:dev`**: the main development workspace with `Code` / `Command` / `Files` / `Git` panes.
-- **`2:ai`**: AI assistant workspace, useful for Codex CLI.
-- **`3:ssh`**: remote session workspace.
+- **`2:ai`**: AI assistant workspace split into `agent-1` / `agent-2`, ready for separate Codex CLI sessions when needed.
+- **`3:ssh`**: remote session workspace with a 4-pane `ssh-1` to `ssh-4` grid for multiple devices.
 - **`4:logs`**: tests, logs, and watch commands.
 
 Start a workspace for the current directory:
