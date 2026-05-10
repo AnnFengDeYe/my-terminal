@@ -27,6 +27,8 @@ Create a daily tmux workspace:
   - window 3: ssh
     - 4 shells for remote sessions
   - window 4: logs
+    - left: logs-1 shell
+    - right: logs-2 shell
 
 Options:
   --dir PATH      Use PATH as the workspace directory. Defaults to current directory.
@@ -98,7 +100,13 @@ parse_args() {
 }
 
 exec_shell() {
-  exec "${SHELL:-/bin/sh}"
+  local shell_path="${SHELL:-/bin/sh}"
+
+  if [[ "${shell_path##*/}" == "zsh" ]]; then
+    PROMPT_EOL_MARK="" exec "$shell_path"
+  fi
+
+  exec "$shell_path"
 }
 
 run_editor() {
@@ -148,7 +156,6 @@ run_git() {
 
 run_shell() {
   cd "$WORK_DIR"
-  clear 2>/dev/null || true
   exec_shell
 }
 
@@ -290,6 +297,18 @@ fit_ai_layout() {
   tmux select-layout -t "$window_id" even-horizontal >/dev/null 2>&1 || true
 }
 
+fit_logs_layout() {
+  local logs_1_pane
+  local logs_2_pane
+  local window_id="$1"
+
+  logs_1_pane="$(pane_id_by_title "$window_id" logs-1 || true)"
+  logs_2_pane="$(pane_id_by_title "$window_id" logs-2 || true)"
+  [[ -n "$logs_1_pane" && -n "$logs_2_pane" ]] || return 0
+
+  tmux select-layout -t "$window_id" even-horizontal >/dev/null 2>&1 || true
+}
+
 fit_ssh_layout() {
   local pane
   local window_id="$1"
@@ -338,6 +357,7 @@ fit_workspace_to_terminal() {
   if [[ -n "$logs_window" ]]; then
     set_window_pane_options "$logs_window"
     tmux resize-window -t "$logs_window" -x "$term_cols" -y "$term_lines" >/dev/null 2>&1 || true
+    fit_logs_layout "$logs_window"
   fi
 
   tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
@@ -445,6 +465,23 @@ create_ssh_window() {
   tmux select-pane -t "$ssh_1_pane"
 }
 
+create_logs_window() {
+  local logs_1_pane
+  local logs_2_pane
+  local script_cmd="$1"
+  local window_id
+
+  window_id="$(tmux new-window -d -P -F '#{window_id}' -t "$SESSION" -n logs -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
+  set_window_pane_options "$window_id"
+
+  logs_1_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
+  logs_2_pane="$(tmux split-window -h -P -F '#{pane_id}' -t "$logs_1_pane" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
+
+  tmux select-pane -t "$logs_1_pane" -T "logs-1"
+  tmux select-pane -t "$logs_2_pane" -T "logs-2"
+  fit_logs_layout "$window_id"
+}
+
 create_session() {
   local bottom
   local right_bottom
@@ -487,7 +524,7 @@ create_session() {
 
   create_ai_window "$script_cmd"
   create_ssh_window "$script_cmd"
-  tmux new-window -d -t "$SESSION" -n logs -c "$WORK_DIR"
+  create_logs_window "$script_cmd"
   tmux move-window -r -t "$SESSION"
   tmux select-window -t "$window_id"
   tmux select-pane -t "$top_left"
