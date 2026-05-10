@@ -7,6 +7,8 @@ TARGET_HOME="${TEST_HOME:-$HOME}"
 
 # shellcheck source=scripts/config_sources.sh
 . "$SCRIPT_DIR/config_sources.sh"
+# shellcheck source=scripts/path_helpers.sh
+. "$SCRIPT_DIR/path_helpers.sh"
 
 DRY_RUN=0
 YES=0
@@ -62,35 +64,6 @@ ensure_safe_home() {
 ensure_under_home() {
   local path="$1"
   [[ "$path" == "$TARGET_HOME"/* ]] || die "path is outside target HOME: $path"
-}
-
-canonical_existing_path() {
-  local path="$1"
-  local dir
-  local base
-
-  if [[ -d "$path" && ! -L "$path" ]]; then
-    (cd "$path" && pwd -P)
-    return 0
-  fi
-
-  dir="$(dirname "$path")"
-  base="$(basename "$path")"
-  (cd "$dir" && printf '%s/%s\n' "$(pwd -P)" "$base")
-}
-
-resolve_link_target() {
-  local link_path="$1"
-  local link_value
-  local link_dir
-
-  link_value="$(readlink "$link_path")"
-  if [[ "$link_value" == /* ]]; then
-    canonical_existing_path "$link_value"
-  else
-    link_dir="$(dirname "$link_path")"
-    canonical_existing_path "$link_dir/$link_value"
-  fi
 }
 
 latest_backup_for() {

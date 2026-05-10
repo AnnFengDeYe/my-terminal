@@ -480,6 +480,7 @@ create_logs_window() {
   tmux select-pane -t "$logs_1_pane" -T "logs-1"
   tmux select-pane -t "$logs_2_pane" -T "logs-2"
   fit_logs_layout "$window_id"
+  tmux select-pane -t "$logs_1_pane"
 }
 
 create_session() {

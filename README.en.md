@@ -21,7 +21,7 @@ It supports macOS, Debian, Ubuntu, Raspberry Pi OS, Arch Linux, and Fedora. The 
 - **`1:dev`**: the main development workspace with `Code` / `Command` / `Files` / `Git` panes.
 - **`2:ai`**: AI assistant workspace split into `agent-1` / `agent-2`, ready for separate Codex CLI sessions when needed.
 - **`3:ssh`**: remote session workspace with a 4-pane `ssh-1` to `ssh-4` grid for multiple devices.
-- **`4:logs`**: tests, logs, and watch commands.
+- **`4:logs`**: tests, logs, and watch commands split into `logs-1` / `logs-2`.
 
 Start a workspace for the current directory:
 
@@ -37,7 +37,7 @@ workplace
 
 `workplace` starts or enters the daily workspace for the current directory. Use `workplace --reset` when you want to recreate the session.
 
-On startup, it detects the current terminal size and fits the tmux workspace to the full terminal window. When entering an existing workspace, it also reapplies the 4-pane layout so old dimensions do not leave blank padding. Set `WORKSPACE_COLS` / `WORKSPACE_LINES` when you need a fixed size.
+On startup, it detects the current terminal size and fits the tmux workspace to the full terminal window. When entering an existing workspace, it also reapplies the workspace layouts so old dimensions do not leave blank padding. Set `WORKSPACE_COLS` / `WORKSPACE_LINES` when you need a fixed size.
 
 Start a workspace for another project:
 

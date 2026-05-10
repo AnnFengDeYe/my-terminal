@@ -21,7 +21,7 @@
 - **`1:dev`**：主开发工作区，包含 `Code` / `Command` / `Files` / `Git` 四个 pane。
 - **`2:ai`**：AI 辅助工作区，默认左右二分为 `agent-1` / `agent-2`，可按需分别运行 Codex CLI。
 - **`3:ssh`**：远程连接工作区，默认四宫格 `ssh-1` 到 `ssh-4`，方便同时连接多个设备。
-- **`4:logs`**：测试、日志和 watch 命令工作区。
+- **`4:logs`**：测试、日志和 watch 命令工作区，默认左右二分为 `logs-1` / `logs-2`。
 
 启动当前目录的工作区：
 
@@ -37,7 +37,7 @@ workplace
 
 `workplace` 会启动或进入当前目录的日常 workspace；需要重建会话时可运行 `workplace --reset`。
 
-启动时会自动检测当前终端尺寸并让 tmux workspace 铺满整个终端窗口；进入已有 workspace 时也会重新调整 4 个 pane 的布局，避免旧尺寸留下空白占位。需要固定尺寸时可设置 `WORKSPACE_COLS` / `WORKSPACE_LINES`。
+启动时会自动检测当前终端尺寸并让 tmux workspace 铺满整个终端窗口；进入已有 workspace 时也会重新调整各窗口布局，避免旧尺寸留下空白占位。需要固定尺寸时可设置 `WORKSPACE_COLS` / `WORKSPACE_LINES`。
 
 为其他项目启动工作区：
 

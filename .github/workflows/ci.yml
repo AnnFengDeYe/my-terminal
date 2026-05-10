@@ -69,8 +69,10 @@ jobs:
           test "$(tmux list-panes -t ci-workspace:1 | wc -l | tr -d ' ')" = "4"
           test "$(tmux list-panes -t ci-workspace:2 | wc -l | tr -d ' ')" = "2"
           test "$(tmux list-panes -t ci-workspace:3 | wc -l | tr -d ' ')" = "4"
+          test "$(tmux list-panes -t ci-workspace:4 | wc -l | tr -d ' ')" = "2"
           test "$(tmux list-panes -t ci-workspace:2 -F '#{pane_title}' | tr '\n' ' ')" = "agent-1 agent-2 "
           test "$(tmux list-panes -t ci-workspace:3 -F '#{pane_title}' | tr '\n' ' ')" = "ssh-1 ssh-3 ssh-2 ssh-4 "
+          test "$(tmux list-panes -t ci-workspace:4 -F '#{pane_title}' | tr '\n' ' ')" = "logs-1 logs-2 "
           tmux show-hooks -t ci-workspace client-resized | grep -q -- '--fit-only'
           tmux show-hooks -t ci-workspace after-select-window | grep -q -- '--fit-only'
 

@@ -8,6 +8,8 @@ LANGUAGE="zh"
 
 # shellcheck source=scripts/config_sources.sh
 . "$SCRIPT_DIR/config_sources.sh"
+# shellcheck source=scripts/path_helpers.sh
+. "$SCRIPT_DIR/path_helpers.sh"
 
 PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/snap/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export PATH
@@ -184,35 +186,6 @@ font_state() {
     printf '  [待安装] JetBrainsMono Nerd Font\n'
   else
     printf '  [missing]   JetBrainsMono Nerd Font\n'
-  fi
-}
-
-canonical_existing_path() {
-  local path="$1"
-  local dir
-  local base
-
-  if [[ -d "$path" && ! -L "$path" ]]; then
-    (cd "$path" && pwd -P)
-    return 0
-  fi
-
-  dir="$(dirname "$path")"
-  base="$(basename "$path")"
-  (cd "$dir" && printf '%s/%s\n' "$(pwd -P)" "$base")
-}
-
-resolve_link_target() {
-  local link_path="$1"
-  local link_value
-  local link_dir
-
-  link_value="$(readlink "$link_path")"
-  if [[ "$link_value" == /* ]]; then
-    canonical_existing_path "$link_value"
-  else
-    link_dir="$(dirname "$link_path")"
-    canonical_existing_path "$link_dir/$link_value"
   fi
 }
 

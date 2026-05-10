@@ -10,6 +10,14 @@ die() {
   exit 1
 }
 
+usage() {
+  cat <<'EOF'
+Usage: scripts/backup.sh [--dry-run] ABSOLUTE_PATH
+
+Safely moves a target under HOME to an adjacent .backup.TIMESTAMP path.
+EOF
+}
+
 is_under_home() {
   local path="$1"
   local home_root="${2:-${TEST_HOME:-$HOME}}"
@@ -78,6 +86,10 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       --dry-run)
         dry_run=1
         shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
         ;;
       --)
         shift
