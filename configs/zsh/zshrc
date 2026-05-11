@@ -181,6 +181,7 @@ if command -v zoxide >/dev/null 2>&1; then
   # j = jump；ji = 交互式跳转
   alias j="z"
   alias ji="zi"
+  alias zquery="zoxide query -s -l"
 fi
 
 
