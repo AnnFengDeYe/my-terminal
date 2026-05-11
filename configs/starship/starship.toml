@@ -4,7 +4,7 @@
 # ==========================================
 
 format = """
-${custom.os_identity}$hostname$directory$git_branch$git_status
+${custom.os_identity}$hostname$directory$python$c$cpp$git_branch$git_status
 $character"""
 
 
@@ -42,7 +42,28 @@ truncation_symbol = "…/"
 
 
 # ==========================================
-# 4. Git 分支
+# 4. Python / C 版本
+# ==========================================
+
+[python]
+symbol = "🐍 "
+style = "fg:#61AFEF bold"
+format = " [$symbol$version( \\($virtualenv\\))]($style)"
+
+[c]
+symbol = " "
+style = "fg:#56B6C2 bold"
+format = " [$symbol$name $version]($style)"
+
+[cpp]
+disabled = false
+symbol = " "
+style = "fg:#56B6C2 bold"
+format = " [$symbol$name $version]($style)"
+
+
+# ==========================================
+# 5. Git 分支
 # ==========================================
 
 [git_branch]
@@ -51,7 +72,7 @@ style = "bold green"
 
 
 # ==========================================
-# 5. Git 状态
+# 6. Git 状态
 # ==========================================
 
 [git_status]
@@ -71,7 +92,7 @@ deleted = "✘${count} "
 
 
 # ==========================================
-# 6. 第二行输入光标
+# 7. 第二行输入光标
 # ==========================================
 
 [character]
