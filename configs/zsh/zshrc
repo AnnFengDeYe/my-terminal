@@ -251,6 +251,7 @@ if command -v fd >/dev/null 2>&1; then
   alias fda="fd --hidden --follow --exclude .git" # 搜索全部，包含隐藏文件
   alias fdd="fd --type d"                         # 只搜索目录
   alias fdf="fd --type f"                         # 只搜索文件
+  alias fchanged="fd --changed-within"            # 按时间查找近期改动
 fi
 
 # ------------------------------------------
