@@ -272,6 +272,7 @@ main() {
   syntax_highlighting_state
   tool_state "tmux" tmux
   tool_state "starship" starship
+  tool_state "btop" btop
   tool_state "fzf" fzf
   tool_state "zoxide" zoxide
   tool_state "eza" eza

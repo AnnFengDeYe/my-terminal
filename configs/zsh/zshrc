@@ -148,6 +148,14 @@ if command -v nvim >/dev/null 2>&1; then
   alias vim="nvim"
 fi
 
+# ------------------------------------------
+# btop：系统监控
+# ------------------------------------------
+
+if command -v btop >/dev/null 2>&1; then
+  alias bt="btop"
+fi
+
 
 # ------------------------------------------
 # Ghostty：终端主题

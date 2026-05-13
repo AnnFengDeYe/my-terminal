@@ -5,6 +5,7 @@ curl
 unzip
 tmux
 starship
+btop
 fzf
 zoxide
 eza

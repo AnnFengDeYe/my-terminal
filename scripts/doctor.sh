@@ -141,6 +141,7 @@ main() {
   check_zsh_syntax_highlighting
   check_cmd tmux
   check_cmd starship
+  check_cmd btop
   check_cmd fzf
   check_cmd zoxide
   check_cmd eza
