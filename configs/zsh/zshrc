@@ -305,6 +305,47 @@ if command -v yazi >/dev/null 2>&1; then
 fi
 
 # ------------------------------------------
+# Git：交互式分支切换
+# ------------------------------------------
+
+if command -v git >/dev/null 2>&1 && command -v fzf >/dev/null 2>&1; then
+  gsw() {            # 使用 fzf 选择并切换 Git 分支
+    local branch
+
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo "gsw: not inside a git repository" >&2
+      return 1
+    fi
+
+    branch="$(
+      git for-each-ref --format='%(refname:short)' refs/heads refs/remotes/origin \
+        | sed 's#^origin/##' \
+        | sed '/^HEAD$/d' \
+        | sort -u \
+        | fzf --prompt='git switch> ' --preview 'branch={}
+if git show-ref --verify --quiet "refs/heads/$branch"; then
+  git log --oneline --graph --decorate --color=always --max-count=20 "$branch"
+elif git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+  git log --oneline --graph --decorate --color=always --max-count=20 "origin/$branch"
+else
+  echo "No commits found for $branch"
+fi'
+    )" || return
+
+    [ -n "$branch" ] || return 0
+
+    if git show-ref --verify --quiet "refs/heads/$branch"; then
+      git switch "$branch"
+    elif git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+      git switch --track "origin/$branch"
+    else
+      echo "gsw: branch not found: $branch" >&2
+      return 1
+    fi
+  }
+fi
+
+# ------------------------------------------
 # lazygit：交互式 Git 管理器
 # ------------------------------------------
 
