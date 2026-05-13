@@ -262,6 +262,23 @@ if command -v rg >/dev/null 2>&1; then
   alias grep="rg"    # 替代 grep，搜索更快
   alias rgi="rg -i"  # 忽略大小写搜索
 
+  rgc() {            # 带上下文行数搜索
+    if [ "$#" -ne 2 ]; then
+      echo "Usage: rgc <context_lines> <search_text>"
+      echo "Example: rgc 2 'TODO'"
+      return 1
+    fi
+
+    case "$1" in
+      ''|*[!0-9]*)
+        echo "context_lines must be a non-negative integer"
+        return 1
+        ;;
+    esac
+
+    rg -C "$1" -- "$2"
+  }
+
   rga() {            # 搜索全部，包含隐藏文件
     rg --hidden --follow \
       --glob '!.git' \
