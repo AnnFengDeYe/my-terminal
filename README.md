@@ -96,6 +96,7 @@ workplace
 
 - **Shell 与提示符**：`zsh`、`zsh-syntax-highlighting`、`starship`
 - **命令行增强**：`eza`、`bat` / `batcat`、`zoxide`、`ripgrep`、`fd` / `fdfind`、`fzf`
+- **进程排查**：`pstree` / `psmisc`、`lsof`
 - **终端与文件工作流**：`tmux`、`yazi`
 - **开发工具**：`neovim` / `nvim`、`lazygit`
 

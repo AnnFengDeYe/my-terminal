@@ -6,6 +6,8 @@ unzip
 tmux
 starship
 fzf
+psmisc
+lsof
 zoxide
 eza
 bat

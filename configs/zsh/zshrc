@@ -346,6 +346,99 @@ fi'
 fi
 
 # ------------------------------------------
+# fkill：交互式进程终止
+# ------------------------------------------
+
+if command -v fzf >/dev/null 2>&1 && command -v pstree >/dev/null 2>&1; then
+  _fkill_ps_cmd() {
+    if ps --version >/dev/null 2>&1; then
+      printf '%s\n' "ps -eo pid,ppid,user,stat,pcpu,pmem,comm,args --sort=-pcpu"
+    else
+      printf '%s\n' "{ ps -axo pid,ppid,user,stat,%cpu,%mem,comm,args | head -n 1; ps -axo pid,ppid,user,stat,%cpu,%mem,comm,args | tail -n +2 | sort -k5 -nr; }"
+    fi
+  }
+
+  _fkill_ps_list() {
+    if ps --version >/dev/null 2>&1; then
+      ps -eo pid,ppid,user,stat,pcpu,pmem,comm,args --sort=-pcpu
+    else
+      {
+        ps -axo pid,ppid,user,stat,%cpu,%mem,comm,args | head -n 1
+        ps -axo pid,ppid,user,stat,%cpu,%mem,comm,args | tail -n +2 | sort -k5 -nr
+      }
+    fi
+  }
+
+  _fkill_run() {
+    local prompt ps_cmd preview pids signal
+    signal="$1"
+    prompt="$2"
+    ps_cmd="$(_fkill_ps_cmd)"
+    preview='
+pid={1}
+
+echo "=== Process Info ==="
+ps -p "$pid" -o pid,ppid,user,stat,pcpu,pmem,comm,args 2>/dev/null || \
+ps -p "$pid" -o pid,ppid,user,stat,%cpu,%mem,comm,args 2>/dev/null || \
+echo "Process not found"
+
+echo
+echo "=== Process Tree ==="
+pstree -p "$pid" 2>/dev/null || pstree "$pid" 2>/dev/null || echo "No process tree available"
+
+echo
+echo "=== Network Ports ==="
+if command -v lsof >/dev/null 2>&1; then
+  ports="$(lsof -Pan -p "$pid" -i 2>/dev/null | head -n 20)"
+  if [ -n "$ports" ]; then
+    printf "%s\n" "$ports"
+  else
+    echo "No network ports or permission denied"
+  fi
+else
+  echo "lsof not installed"
+fi
+
+echo
+echo "=== Open Files ==="
+if command -v lsof >/dev/null 2>&1; then
+  files="$(lsof -p "$pid" 2>/dev/null | head -n 20)"
+  if [ -n "$files" ]; then
+    printf "%s\n" "$files"
+  else
+    echo "No open files or permission denied"
+  fi
+else
+  echo "lsof not installed"
+fi'
+
+    pids="$(
+      _fkill_ps_list \
+        | fzf \
+          --header-lines=1 \
+          --multi \
+          --prompt="$prompt" \
+          --preview "$preview" \
+          --bind "ctrl-r:reload($ps_cmd)" \
+          --bind 'ctrl-j:preview-down,ctrl-k:preview-up' \
+          --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
+        | awk '{print $1}'
+    )"
+
+    [ -n "$pids" ] || return 0
+    printf '%s\n' "$pids" | xargs kill "$signal"
+  }
+
+  fkill() {
+    _fkill_run -TERM "Kill Process > "
+  }
+
+  fkill9() {
+    _fkill_run -KILL "Force Kill Process > "
+  }
+fi
+
+# ------------------------------------------
 # lazygit：交互式 Git 管理器
 # ------------------------------------------
 

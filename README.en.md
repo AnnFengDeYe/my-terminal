@@ -96,6 +96,7 @@ This repository can automatically install and configure these tools:
 
 - **Shell and prompt**: `zsh`, `zsh-syntax-highlighting`, `starship`
 - **CLI enhancements**: `eza`, `bat` / `batcat`, `zoxide`, `ripgrep`, `fd` / `fdfind`, `fzf`
+- **Process inspection**: `pstree` / `psmisc`, `lsof`
 - **Terminal and file workflow**: `tmux`, `yazi`
 - **Developer tools**: `neovim` / `nvim`, `lazygit`
 
