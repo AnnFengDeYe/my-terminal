@@ -142,8 +142,6 @@ main() {
   check_cmd tmux
   check_cmd starship
   check_cmd fzf
-  check_cmd pstree
-  check_cmd lsof 1
   check_cmd zoxide
   check_cmd eza
   check_any_cmd "bat" bat batcat

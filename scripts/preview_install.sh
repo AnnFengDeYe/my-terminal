@@ -273,8 +273,6 @@ main() {
   tool_state "tmux" tmux
   tool_state "starship" starship
   tool_state "fzf" fzf
-  tool_state "pstree" pstree
-  tool_state "lsof" lsof
   tool_state "zoxide" zoxide
   tool_state "eza" eza
   tool_state "bat" bat batcat
