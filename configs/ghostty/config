@@ -33,6 +33,9 @@ macos-titlebar-style = transparent
 # 左 Option 作为终端 Alt 键，右 Option 保留 macOS 特殊字符输入
 macos-option-as-alt = left
 
+# tmux 开启鼠标时保留 Shift 绕过鼠标上报，用于点击 OSC 8 超链接
+mouse-shift-capture = never
+
 
 # 3. 快捷键：配置热重载
 keybind = ctrl+shift+r=reload_config
