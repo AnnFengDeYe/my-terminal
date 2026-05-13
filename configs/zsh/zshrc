@@ -120,8 +120,8 @@ fi
 # ------------------------------------------
 
 if command -v eza >/dev/null 2>&1; then
-  alias ls="eza --icons=always --group-directories-first"                 # 简洁列表
-  alias ll="eza -lah --icons=always --group-directories-first --git"      # 详细列表 + Git 状态
+  alias ls="eza --icons=always --group-directories-first --hyperlink"     # 简洁列表 + 可点击路径
+  alias ll="eza -lah --icons=always --group-directories-first --git --octal-permissions" # 详细列表 + Git 状态 + 八进制权限
   alias la="eza -la --icons=always --group-directories-first"             # 显示隐藏文件
   alias lt="eza --tree --icons=always --git-ignore --level=3"             # 3 层目录树
   alias tree="eza --tree --icons=always --git-ignore"                     # 完整目录树
