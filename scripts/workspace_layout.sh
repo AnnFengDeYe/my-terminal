@@ -29,6 +29,8 @@ Create a daily tmux workspace:
   - window 4: logs
     - left: logs-1 shell
     - right: logs-2 shell
+  - window 5: btop
+    - system monitor
 
 Options:
   --dir PATH      Use PATH as the workspace directory. Defaults to current directory.
@@ -159,11 +161,24 @@ run_shell() {
   exec_shell
 }
 
+run_monitor() {
+  cd "$WORK_DIR"
+  if command -v btop >/dev/null 2>&1; then
+    btop || true
+    exec_shell
+  fi
+
+  clear 2>/dev/null || true
+  printf 'btop is not installed. Workspace: %s\n\n' "$WORK_DIR"
+  exec_shell
+}
+
 run_pane_mode() {
   case "$PANE_MODE" in
     editor) run_editor ;;
     files) run_files ;;
     git) run_git ;;
+    monitor) run_monitor ;;
     shell) run_shell ;;
     *) die "unknown pane mode: $PANE_MODE" ;;
   esac
@@ -226,13 +241,24 @@ detect_tmux_size() {
 }
 
 workspace_window_target() {
-  tmux display-message -p -t "$SESSION:dev" '#{window_id}' 2>/dev/null \
+  window_id_by_name dev \
     || tmux display-message -p -t "$SESSION" '#{window_id}' 2>/dev/null \
     || true
 }
 
 window_id_by_name() {
-  tmux display-message -p -t "$SESSION:$1" '#{window_id}' 2>/dev/null || true
+  local target_name="$1"
+  local window_id
+  local window_name
+
+  while read -r window_id window_name; do
+    if [[ "$window_name" == "$target_name" ]]; then
+      printf '%s\n' "$window_id"
+      return 0
+    fi
+  done < <(tmux list-windows -t "$SESSION" -F '#{window_id} #{window_name}' 2>/dev/null)
+
+  return 1
 }
 
 pane_id_by_title() {
@@ -322,6 +348,7 @@ fit_ssh_layout() {
 
 fit_workspace_to_terminal() {
   local ai_window
+  local btop_window
   local logs_window
   local ssh_window
   local target_window="${1:-}"
@@ -338,9 +365,10 @@ fit_workspace_to_terminal() {
   tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
   fit_pane_layout "$target_window"
 
-  ai_window="$(window_id_by_name ai)"
-  ssh_window="$(window_id_by_name ssh)"
-  logs_window="$(window_id_by_name logs)"
+  ai_window="$(window_id_by_name ai || true)"
+  ssh_window="$(window_id_by_name ssh || true)"
+  logs_window="$(window_id_by_name logs || true)"
+  btop_window="$(window_id_by_name btop || true)"
 
   if [[ -n "$ai_window" ]]; then
     set_window_pane_options "$ai_window"
@@ -358,6 +386,11 @@ fit_workspace_to_terminal() {
     set_window_pane_options "$logs_window"
     tmux resize-window -t "$logs_window" -x "$term_cols" -y "$term_lines" >/dev/null 2>&1 || true
     fit_logs_layout "$logs_window"
+  fi
+
+  if [[ -n "$btop_window" ]]; then
+    set_window_pane_options "$btop_window"
+    tmux resize-window -t "$btop_window" -x "$term_cols" -y "$term_lines" >/dev/null 2>&1 || true
   fi
 
   tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
@@ -412,6 +445,7 @@ set_tmux_options() {
   tmux bind-key -n M-2 select-window -t :=2 >/dev/null
   tmux bind-key -n M-3 select-window -t :=3 >/dev/null
   tmux bind-key -n M-4 select-window -t :=4 >/dev/null
+  tmux bind-key -n M-5 select-window -t :=5 >/dev/null
   set_workspace_hooks
 }
 
@@ -483,6 +517,27 @@ create_logs_window() {
   tmux select-pane -t "$logs_1_pane"
 }
 
+create_btop_window() {
+  local btop_pane
+  local script_cmd="$1"
+  local window_id
+
+  window_id="$(tmux new-window -d -P -F '#{window_id}' -t "$SESSION" -n btop -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane monitor")"
+  set_window_pane_options "$window_id"
+
+  btop_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
+  tmux select-pane -t "$btop_pane" -T "btop"
+}
+
+ensure_btop_window() {
+  local script_cmd="$1"
+
+  if ! window_id_by_name btop >/dev/null; then
+    create_btop_window "$script_cmd"
+    tmux move-window -r -t "$SESSION"
+  fi
+}
+
 create_session() {
   local bottom
   local right_bottom
@@ -501,6 +556,7 @@ create_session() {
     if [[ "$RESET" == "1" ]]; then
       tmux kill-session -t "$SESSION"
     else
+      ensure_btop_window "$script_cmd"
       attach_or_switch
       return 0
     fi
@@ -526,6 +582,7 @@ create_session() {
   create_ai_window "$script_cmd"
   create_ssh_window "$script_cmd"
   create_logs_window "$script_cmd"
+  create_btop_window "$script_cmd"
   tmux move-window -r -t "$SESSION"
   tmux select-window -t "$window_id"
   tmux select-pane -t "$top_left"
