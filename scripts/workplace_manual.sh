@@ -249,6 +249,7 @@ interactive_manual() {
       '--nth=1,3'
       --preview="$preview_cmd"
       --preview-window=right:60%:wrap
+      '--bind=ctrl-/:toggle-preview'
       '--color=fg:252,bg:-1,hl:39,fg+:255,bg+:236,hl+:81,pointer:81,marker:219,prompt:39,spinner:39,header:244,border:240'
     )
     if [[ "${WORKPLACE_MANUAL_FULL_HEIGHT:-0}" == "1" ]]; then
