@@ -215,6 +215,14 @@ workspace_window_is_primary() {
   [[ "$1" == "dev" ]]
 }
 
+workspace_entry_window_name() {
+  printf 'dev'
+}
+
+workspace_entry_pane_title() {
+  printf 'shell'
+}
+
 workspace_window_is_configured() {
   local candidate="$1"
   local window_name
@@ -459,6 +467,23 @@ fit_workspace_to_terminal() {
   tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
 }
 
+select_workspace_entry_pane() {
+  local pane_id
+  local pane_title
+  local window_id
+  local window_name
+
+  window_name="$(workspace_entry_window_name)"
+  pane_title="$(workspace_entry_pane_title)"
+  window_id="$(window_id_by_name "$window_name" || true)"
+  [[ -n "$window_id" ]] || return 0
+
+  tmux select-window -t "$window_id" >/dev/null 2>&1 || return 0
+  pane_id="$(pane_id_by_title "$window_id" "$pane_title" || true)"
+  [[ -n "$pane_id" ]] || return 0
+  tmux select-pane -t "$pane_id" >/dev/null 2>&1 || true
+}
+
 set_workspace_hooks() {
   local fit_all_cmd
   local fit_window_cmd
@@ -476,6 +501,7 @@ set_workspace_hooks() {
 attach_or_switch() {
   set_workspace_hooks
   fit_workspace_to_terminal
+  select_workspace_entry_pane
 
   if [[ "$ATTACH" != "1" ]]; then
     printf 'Created tmux session: %s\n' "$SESSION"
@@ -677,8 +703,7 @@ create_session() {
 
   create_remaining_workspace_windows "$script_cmd"
   tmux move-window -r -t "$SESSION"
-  tmux select-window -t "$window_id"
-  tmux select-pane -t "$top_left"
+  select_workspace_entry_pane
 
   attach_or_switch
 }
