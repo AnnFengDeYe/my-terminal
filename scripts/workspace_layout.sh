@@ -11,6 +11,7 @@ ATTACH=1
 PANE_MODE=""
 FIT_ONLY=0
 FIT_TARGET=""
+LIST_WINDOWS=0
 
 usage() {
   cat <<'EOF'
@@ -41,6 +42,7 @@ Options:
   --fit-only      Refit an existing session without creating or attaching.
   --target-window WINDOW_ID
                   With --fit-only, refit only one tmux window. Used by hooks.
+  --list-windows  Print the workspace window registry and exit.
   --help, -h      Show this help.
 
 Environment:
@@ -95,6 +97,11 @@ parse_args() {
         [[ $# -ge 2 ]] || die "--target-window requires a tmux window id"
         FIT_TARGET="$2"
         shift 2
+        ;;
+      --list-windows)
+        LIST_WINDOWS=1
+        ATTACH=0
+        shift
         ;;
       --help|-h)
         usage
@@ -196,44 +203,147 @@ shell_quote() {
   printf '%q' "$1"
 }
 
-workspace_window_names() {
-  printf '%s\n' dev ai ssh logs btop
+WORKSPACE_WINDOWS=(
+  "dev|primary|shell|editor|configure_dev_window|fit_dev_layout"
+  "ai|secondary||shell|configure_ai_window|fit_ai_layout"
+  "ssh|secondary||shell|configure_ssh_window|fit_ssh_layout"
+  "logs|secondary||shell|configure_logs_window|fit_logs_layout"
+  "btop|secondary||monitor|configure_btop_window|fit_noop_layout"
+)
+
+workspace_window_records() {
+  printf '%s\n' "${WORKSPACE_WINDOWS[@]}"
 }
 
-workspace_window_fit_strategy() {
-  case "$1" in
-    dev) printf 'dev' ;;
-    ai) printf 'ai' ;;
-    ssh) printf 'ssh' ;;
-    logs) printf 'logs' ;;
-    btop) printf 'none' ;;
+workspace_window_record() {
+  local candidate="$1"
+  local configure_fn
+  local entry_pane
+  local fit_fn
+  local initial_pane_mode
+  local role
+  local window_name
+
+  while IFS='|' read -r window_name role entry_pane initial_pane_mode configure_fn fit_fn; do
+    if [[ "$window_name" == "$candidate" ]]; then
+      printf '%s|%s|%s|%s|%s|%s\n' "$window_name" "$role" "$entry_pane" "$initial_pane_mode" "$configure_fn" "$fit_fn"
+      return 0
+    fi
+  done < <(workspace_window_records)
+
+  return 1
+}
+
+workspace_window_field() {
+  local configure_fn
+  local entry_pane
+  local field_name="$2"
+  local fit_fn
+  local initial_pane_mode
+  local role
+  local window_name
+
+  if ! IFS='|' read -r window_name role entry_pane initial_pane_mode configure_fn fit_fn < <(workspace_window_record "$1"); then
+    return 1
+  fi
+
+  case "$field_name" in
+    name) printf '%s\n' "$window_name" ;;
+    role) printf '%s\n' "$role" ;;
+    entry_pane) printf '%s\n' "$entry_pane" ;;
+    initial_pane_mode) printf '%s\n' "$initial_pane_mode" ;;
+    configure_fn) printf '%s\n' "$configure_fn" ;;
+    fit_fn) printf '%s\n' "$fit_fn" ;;
     *) return 1 ;;
   esac
 }
 
+workspace_window_names() {
+  local configure_fn
+  local entry_pane
+  local fit_fn
+  local initial_pane_mode
+  local role
+  local window_name
+
+  while IFS='|' read -r window_name role entry_pane initial_pane_mode configure_fn fit_fn; do
+    printf '%s\n' "$window_name"
+  done < <(workspace_window_records)
+}
+
+workspace_window_fit_fn() {
+  workspace_window_field "$1" fit_fn
+}
+
+workspace_window_configure_fn() {
+  workspace_window_field "$1" configure_fn
+}
+
+workspace_window_initial_pane_mode() {
+  workspace_window_field "$1" initial_pane_mode
+}
+
 workspace_window_is_primary() {
-  [[ "$1" == "dev" ]]
+  local role
+
+  role="$(workspace_window_field "$1" role || true)"
+  [[ "$role" == "primary" ]]
 }
 
 workspace_entry_window_name() {
-  printf 'dev'
+  local configure_fn
+  local entry_pane
+  local fit_fn
+  local initial_pane_mode
+  local role
+  local window_name
+
+  while IFS='|' read -r window_name role entry_pane initial_pane_mode configure_fn fit_fn; do
+    if [[ "$role" == "primary" ]]; then
+      printf '%s\n' "$window_name"
+      return 0
+    fi
+  done < <(workspace_window_records)
+
+  return 1
 }
 
 workspace_entry_pane_title() {
-  printf 'shell'
+  local configure_fn
+  local entry_pane
+  local fit_fn
+  local initial_pane_mode
+  local role
+  local window_name
+
+  while IFS='|' read -r window_name role entry_pane initial_pane_mode configure_fn fit_fn; do
+    if [[ "$role" == "primary" ]]; then
+      [[ -n "$entry_pane" ]] || return 1
+      printf '%s\n' "$entry_pane"
+      return 0
+    fi
+  done < <(workspace_window_records)
+
+  return 1
 }
 
 workspace_window_is_configured() {
-  local candidate="$1"
+  workspace_window_record "$1" >/dev/null
+}
+
+workspace_window_manifest() {
+  local configure_fn
+  local entry_pane
+  local fit_fn
+  local index=1
+  local initial_pane_mode
+  local role
   local window_name
 
-  while read -r window_name; do
-    if [[ "$window_name" == "$candidate" ]]; then
-      return 0
-    fi
-  done < <(workspace_window_names)
-
-  return 1
+  while IFS='|' read -r window_name role entry_pane initial_pane_mode configure_fn fit_fn; do
+    printf '%s:%s:%s:%s:%s:%s:%s\n' "$index" "$window_name" "$role" "$entry_pane" "$initial_pane_mode" "$configure_fn" "$fit_fn"
+    index=$((index + 1))
+  done < <(workspace_window_records)
 }
 
 bind_workspace_keys() {
@@ -330,7 +440,40 @@ pane_id_by_title() {
   return 1
 }
 
-fit_pane_layout() {
+set_workspace_pane_role() {
+  local pane_id="$1"
+  local role="$2"
+  local title="$3"
+
+  tmux select-pane -t "$pane_id" -T "$title"
+  tmux set-option -p -t "$pane_id" @workspace_pane_role "$role" >/dev/null 2>&1 || true
+}
+
+pane_id_by_role() {
+  local pane_id
+  local pane_role
+  local role="$2"
+  local window_id="$1"
+
+  while read -r pane_id pane_role; do
+    if [[ "$pane_role" == "$role" ]]; then
+      printf '%s\n' "$pane_id"
+      return 0
+    fi
+  done < <(tmux list-panes -t "$window_id" -F '#{pane_id} #{@workspace_pane_role}' 2>/dev/null)
+
+  return 1
+}
+
+pane_id_by_role_or_title() {
+  local role="$2"
+  local title="$3"
+  local window_id="$1"
+
+  pane_id_by_role "$window_id" "$role" || pane_id_by_title "$window_id" "$title"
+}
+
+fit_dev_layout() {
   local bottom_height
   local git_pane
   local pane_area_height
@@ -344,9 +487,9 @@ fit_pane_layout() {
 
   read -r term_cols term_lines < <(detect_tmux_size)
 
-  yazi_pane="$(pane_id_by_title "$window_id" yazi || true)"
-  shell_pane="$(pane_id_by_title "$window_id" shell || true)"
-  git_pane="$(pane_id_by_title "$window_id" lazygit || true)"
+  yazi_pane="$(pane_id_by_role_or_title "$window_id" files yazi || true)"
+  shell_pane="$(pane_id_by_role_or_title "$window_id" shell shell || true)"
+  git_pane="$(pane_id_by_role_or_title "$window_id" git lazygit || true)"
   [[ -n "$yazi_pane" && -n "$shell_pane" && -n "$git_pane" ]] || return 0
 
   pane_area_height=$((term_lines > 1 ? term_lines - 1 : term_lines))
@@ -369,8 +512,8 @@ fit_ai_layout() {
   local agent_2_pane
   local window_id="$1"
 
-  agent_1_pane="$(pane_id_by_title "$window_id" agent-1 || true)"
-  agent_2_pane="$(pane_id_by_title "$window_id" agent-2 || true)"
+  agent_1_pane="$(pane_id_by_role_or_title "$window_id" agent-1 agent-1 || true)"
+  agent_2_pane="$(pane_id_by_role_or_title "$window_id" agent-2 agent-2 || true)"
   [[ -n "$agent_1_pane" && -n "$agent_2_pane" ]] || return 0
 
   tmux select-layout -t "$window_id" even-horizontal >/dev/null 2>&1 || true
@@ -381,8 +524,8 @@ fit_logs_layout() {
   local logs_2_pane
   local window_id="$1"
 
-  logs_1_pane="$(pane_id_by_title "$window_id" logs-1 || true)"
-  logs_2_pane="$(pane_id_by_title "$window_id" logs-2 || true)"
+  logs_1_pane="$(pane_id_by_role_or_title "$window_id" logs-1 logs-1 || true)"
+  logs_2_pane="$(pane_id_by_role_or_title "$window_id" logs-2 logs-2 || true)"
   [[ -n "$logs_1_pane" && -n "$logs_2_pane" ]] || return 0
 
   tmux select-layout -t "$window_id" even-horizontal >/dev/null 2>&1 || true
@@ -393,28 +536,26 @@ fit_ssh_layout() {
   local window_id="$1"
 
   for pane in ssh-1 ssh-2 ssh-3 ssh-4; do
-    pane_id_by_title "$window_id" "$pane" >/dev/null || return 0
+    pane_id_by_role_or_title "$window_id" "$pane" "$pane" >/dev/null || return 0
   done
 
   tmux select-layout -t "$window_id" tiled >/dev/null 2>&1 || true
 }
 
+fit_noop_layout() {
+  return 0
+}
+
 fit_window_layout() {
-  local strategy="$2"
+  local fit_fn="$2"
   local window_id="$1"
 
-  case "$strategy" in
-    dev) fit_pane_layout "$window_id" ;;
-    ai) fit_ai_layout "$window_id" ;;
-    ssh) fit_ssh_layout "$window_id" ;;
-    logs) fit_logs_layout "$window_id" ;;
-    none) return 0 ;;
-    *) return 0 ;;
-  esac
+  declare -F "$fit_fn" >/dev/null || return 0
+  "$fit_fn" "$window_id"
 }
 
 fit_window_to_terminal() {
-  local strategy="$2"
+  local fit_fn="$2"
   local term_cols="$3"
   local term_lines="$4"
   local window_id="$1"
@@ -424,11 +565,11 @@ fit_window_to_terminal() {
 
   set_window_pane_options "$window_id"
   tmux resize-window -t "$window_id" -x "$term_cols" -y "$term_lines" >/dev/null 2>&1 || true
-  fit_window_layout "$window_id" "$strategy"
+  fit_window_layout "$window_id" "$fit_fn"
 }
 
 fit_workspace_target_to_terminal() {
-  local strategy
+  local fit_fn
   local term_cols
   local term_lines
   local window_id="$1"
@@ -439,15 +580,15 @@ fit_workspace_target_to_terminal() {
   [[ -n "$window_name" ]] || return 0
   workspace_window_is_configured "$window_name" || return 0
 
-  strategy="$(workspace_window_fit_strategy "$window_name" || printf 'none')"
+  fit_fn="$(workspace_window_fit_fn "$window_name" || printf 'fit_noop_layout')"
   read -r term_cols term_lines < <(detect_tmux_size)
   tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
-  fit_window_to_terminal "$window_id" "$strategy" "$term_cols" "$term_lines"
+  fit_window_to_terminal "$window_id" "$fit_fn" "$term_cols" "$term_lines"
   tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
 }
 
 fit_workspace_to_terminal() {
-  local strategy
+  local fit_fn
   local term_cols
   local term_lines
   local window_id
@@ -460,8 +601,8 @@ fit_workspace_to_terminal() {
     window_id="$(window_id_by_name "$window_name" || true)"
     [[ -n "$window_id" ]] || continue
 
-    strategy="$(workspace_window_fit_strategy "$window_name" || printf 'none')"
-    fit_window_to_terminal "$window_id" "$strategy" "$term_cols" "$term_lines"
+    fit_fn="$(workspace_window_fit_fn "$window_name" || printf 'fit_noop_layout')"
+    fit_window_to_terminal "$window_id" "$fit_fn" "$term_cols" "$term_lines"
   done < <(workspace_window_names)
 
   tmux set-option -t "$SESSION" window-size latest >/dev/null 2>&1 || true
@@ -546,32 +687,52 @@ set_window_pane_options() {
   tmux set-window-option -t "$window_id" pane-base-index 1 >/dev/null 2>&1 || true
 }
 
-create_ai_window() {
+configure_dev_window() {
+  local bottom
+  local right_bottom
+  local right_top
+  local script_cmd="$2"
+  local top_left
+  local window_id="$1"
+
+  set_window_pane_options "$window_id"
+
+  top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
+  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane files")"
+  bottom="$(tmux split-window -v -l 32% -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
+  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane git")"
+
+  set_workspace_pane_role "$top_left" editor "nvim"
+  set_workspace_pane_role "$right_top" files "yazi"
+  set_workspace_pane_role "$right_bottom" git "lazygit"
+  set_workspace_pane_role "$bottom" shell "shell"
+  fit_dev_layout "$window_id"
+}
+
+configure_ai_window() {
   local agent_1_pane
   local agent_2_pane
-  local script_cmd="$1"
-  local window_id
+  local script_cmd="$2"
+  local window_id="$1"
 
-  window_id="$(tmux new-window -d -P -F '#{window_id}' -t "$SESSION" -n ai -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
   set_window_pane_options "$window_id"
 
   agent_1_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
   agent_2_pane="$(tmux split-window -h -P -F '#{pane_id}' -t "$agent_1_pane" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
 
-  tmux select-pane -t "$agent_1_pane" -T "agent-1"
-  tmux select-pane -t "$agent_2_pane" -T "agent-2"
+  set_workspace_pane_role "$agent_1_pane" agent-1 "agent-1"
+  set_workspace_pane_role "$agent_2_pane" agent-2 "agent-2"
   fit_ai_layout "$window_id"
 }
 
-create_ssh_window() {
-  local script_cmd="$1"
+configure_ssh_window() {
+  local script_cmd="$2"
   local ssh_1_pane
   local ssh_2_pane
   local ssh_3_pane
   local ssh_4_pane
-  local window_id
+  local window_id="$1"
 
-  window_id="$(tmux new-window -d -P -F '#{window_id}' -t "$SESSION" -n ssh -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
   set_window_pane_options "$window_id"
 
   ssh_1_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
@@ -579,56 +740,55 @@ create_ssh_window() {
   ssh_3_pane="$(tmux split-window -v -P -F '#{pane_id}' -t "$ssh_1_pane" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
   ssh_4_pane="$(tmux split-window -v -P -F '#{pane_id}' -t "$ssh_2_pane" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
 
-  tmux select-pane -t "$ssh_1_pane" -T "ssh-1"
-  tmux select-pane -t "$ssh_2_pane" -T "ssh-2"
-  tmux select-pane -t "$ssh_3_pane" -T "ssh-3"
-  tmux select-pane -t "$ssh_4_pane" -T "ssh-4"
+  set_workspace_pane_role "$ssh_1_pane" ssh-1 "ssh-1"
+  set_workspace_pane_role "$ssh_2_pane" ssh-2 "ssh-2"
+  set_workspace_pane_role "$ssh_3_pane" ssh-3 "ssh-3"
+  set_workspace_pane_role "$ssh_4_pane" ssh-4 "ssh-4"
   fit_ssh_layout "$window_id"
   tmux select-pane -t "$ssh_1_pane"
 }
 
-create_logs_window() {
+configure_logs_window() {
   local logs_1_pane
   local logs_2_pane
-  local script_cmd="$1"
-  local window_id
+  local script_cmd="$2"
+  local window_id="$1"
 
-  window_id="$(tmux new-window -d -P -F '#{window_id}' -t "$SESSION" -n logs -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
   set_window_pane_options "$window_id"
 
   logs_1_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
   logs_2_pane="$(tmux split-window -h -P -F '#{pane_id}' -t "$logs_1_pane" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
 
-  tmux select-pane -t "$logs_1_pane" -T "logs-1"
-  tmux select-pane -t "$logs_2_pane" -T "logs-2"
+  set_workspace_pane_role "$logs_1_pane" logs-1 "logs-1"
+  set_workspace_pane_role "$logs_2_pane" logs-2 "logs-2"
   fit_logs_layout "$window_id"
   tmux select-pane -t "$logs_1_pane"
 }
 
-create_btop_window() {
+configure_btop_window() {
   local btop_pane
-  local script_cmd="$1"
-  local window_id
+  local window_id="$1"
 
-  window_id="$(tmux new-window -d -P -F '#{window_id}' -t "$SESSION" -n btop -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane monitor")"
   set_window_pane_options "$window_id"
 
   btop_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
-  tmux select-pane -t "$btop_pane" -T "btop"
+  set_workspace_pane_role "$btop_pane" monitor "btop"
 }
 
 create_workspace_window() {
+  local configure_fn
+  local initial_pane_mode
   local script_cmd="$2"
   local window_name="$1"
+  local window_id
 
-  case "$window_name" in
-    ai) create_ai_window "$script_cmd" ;;
-    ssh) create_ssh_window "$script_cmd" ;;
-    logs) create_logs_window "$script_cmd" ;;
-    btop) create_btop_window "$script_cmd" ;;
-    dev) return 0 ;;
-    *) die "no creator for workspace window: $window_name" ;;
-  esac
+  configure_fn="$(workspace_window_configure_fn "$window_name" || true)"
+  initial_pane_mode="$(workspace_window_initial_pane_mode "$window_name" || true)"
+  [[ -n "$configure_fn" && -n "$initial_pane_mode" ]] || die "no registry entry for workspace window: $window_name"
+  declare -F "$configure_fn" >/dev/null || die "missing configure function for workspace window: $window_name"
+
+  window_id="$(tmux new-window -d -P -F '#{window_id}' -t "$SESSION" -n "$window_name" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane $(shell_quote "$initial_pane_mode")")"
+  "$configure_fn" "$window_id" "$script_cmd"
 }
 
 create_remaining_workspace_windows() {
@@ -647,8 +807,6 @@ ensure_workspace_windows() {
   local window_name
 
   while read -r window_name; do
-    workspace_window_is_primary "$window_name" && continue
-
     if ! window_id_by_name "$window_name" >/dev/null; then
       create_workspace_window "$window_name" "$script_cmd"
       created=1
@@ -656,18 +814,59 @@ ensure_workspace_windows() {
   done < <(workspace_window_names)
 
   if [[ "$created" == "1" ]]; then
-    tmux move-window -r -t "$SESSION"
+    order_workspace_windows
   fi
 }
 
+order_workspace_windows() {
+  local current_index
+  local index=1
+  local window_id
+  local window_name
+
+  while read -r window_name; do
+    window_id="$(window_id_by_name "$window_name" || true)"
+    [[ -n "$window_id" ]] || continue
+
+    current_index="$(tmux display-message -p -t "$window_id" '#I' 2>/dev/null || true)"
+    if [[ "$current_index" != "$index" ]]; then
+      tmux swap-window -d -s "$window_id" -t "$SESSION:=$index" >/dev/null 2>&1 ||
+        tmux move-window -d -s "$window_id" -t "$SESSION:=$index" >/dev/null 2>&1 ||
+        true
+    fi
+    index=$((index + 1))
+  done < <(workspace_window_names)
+
+  tmux move-window -r -t "$SESSION"
+}
+
+create_primary_workspace_window() {
+  local configure_fn
+  local initial_pane_mode
+  local script_cmd="$1"
+  local term_cols="$2"
+  local term_lines="$3"
+  local window_id
+  local window_name
+
+  window_name="$(workspace_entry_window_name)" || die "no primary workspace window configured"
+  configure_fn="$(workspace_window_configure_fn "$window_name" || true)"
+  initial_pane_mode="$(workspace_window_initial_pane_mode "$window_name" || true)"
+  [[ -n "$configure_fn" && -n "$initial_pane_mode" ]] || die "no registry entry for primary workspace window: $window_name"
+  declare -F "$configure_fn" >/dev/null || die "missing configure function for primary workspace window: $window_name"
+
+  tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n "$window_name" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane $(shell_quote "$initial_pane_mode")"
+  window_id="$(tmux display-message -p -t "$SESSION" '#{window_id}')"
+  tmux rename-window -t "$window_id" "$window_name"
+  set_tmux_options "$window_id"
+  "$configure_fn" "$window_id" "$script_cmd"
+  printf '%s\n' "$window_id"
+}
+
 create_session() {
-  local bottom
-  local right_bottom
-  local right_top
   local script_cmd
   local term_cols
   local term_lines
-  local top_left
   local window_id
 
   command -v tmux >/dev/null 2>&1 || die "tmux is required"
@@ -684,25 +883,9 @@ create_session() {
     fi
   fi
 
-  tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n dev -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane editor"
-  window_id="$(tmux display-message -p -t "$SESSION" '#{window_id}')"
-  tmux rename-window -t "$window_id" dev
-  set_tmux_options "$window_id"
-  set_window_pane_options "$window_id"
-  fit_workspace_target_to_terminal "$window_id"
-
-  top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
-  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane files")"
-  bottom="$(tmux split-window -v -l 32% -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
-  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane git")"
-
-  tmux select-pane -t "$top_left" -T "nvim"
-  tmux select-pane -t "$right_top" -T "yazi"
-  tmux select-pane -t "$right_bottom" -T "lazygit"
-  tmux select-pane -t "$bottom" -T "shell"
-
+  window_id="$(create_primary_workspace_window "$script_cmd" "$term_cols" "$term_lines")"
   create_remaining_workspace_windows "$script_cmd"
-  tmux move-window -r -t "$SESSION"
+  order_workspace_windows
   select_workspace_entry_pane
 
   attach_or_switch
@@ -710,6 +893,11 @@ create_session() {
 
 main() {
   parse_args "$@"
+
+  if [[ "$LIST_WINDOWS" == "1" ]]; then
+    workspace_window_manifest
+    exit 0
+  fi
 
   if [[ -n "$PANE_MODE" ]]; then
     run_pane_mode

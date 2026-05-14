@@ -54,32 +54,33 @@ jobs:
           }
           trap cleanup EXIT
 
+          workspace_manifest="$(./scripts/workspace_layout.sh --list-windows)"
+          expected_workspace_windows="$(printf '%s\n' "$workspace_manifest" | awk -F: '{ printf "%s:%s ", $1, $2 }')"
+          expected_workspace_count="$(printf '%s\n' "$workspace_manifest" | wc -l | tr -d ' ')"
+          primary_window="$(printf '%s\n' "$workspace_manifest" | awk -F: '$3 == "primary" { print $2; exit }')"
+          primary_entry_pane="$(printf '%s\n' "$workspace_manifest" | awk -F: '$3 == "primary" { print $4; exit }')"
+
           WORKSPACE_COLS=80 WORKSPACE_LINES=24 ./scripts/workspace_layout.sh --session ci-workspace --reset --no-attach
           ./scripts/workspace_layout.sh --session ci-workspace --no-attach
-          test "$(tmux display-message -p -t ci-workspace:1 '#{pane_title}')" = "shell"
-          test "$(tmux display-message -p -t ci-workspace:1 '#{window_width}x#{window_height}')" = "120x36"
-          test "$(tmux display-message -p -t ci-workspace:2 '#{window_width}x#{window_height}')" = "120x36"
-          test "$(tmux display-message -p -t ci-workspace:3 '#{window_width}x#{window_height}')" = "120x36"
-          test "$(tmux display-message -p -t ci-workspace:4 '#{window_width}x#{window_height}')" = "120x36"
-          test "$(tmux display-message -p -t ci-workspace:5 '#{window_width}x#{window_height}')" = "120x36"
+          test "$(tmux display-message -p -t "ci-workspace:$primary_window" '#{pane_title}')" = "$primary_entry_pane"
           test "$(tmux show-options -t ci-workspace -qv window-size)" = "latest"
-          test "$(tmux show-window-options -t ci-workspace:2 -v aggressive-resize)" = "on"
-          test "$(tmux show-window-options -t ci-workspace:3 -v aggressive-resize)" = "on"
-          test "$(tmux show-window-options -t ci-workspace:4 -v aggressive-resize)" = "on"
-          test "$(tmux show-window-options -t ci-workspace:5 -v aggressive-resize)" = "on"
-          test "$(tmux list-panes -t ci-workspace:1 -F '#{pane_title} #{pane_width} #{pane_height}' | awk '$1 == "nvim" { print ($2 >= 70 && $3 >= 20) ? "ok" : "bad" }')" = "ok"
-          test "$(tmux list-panes -t ci-workspace:1 -F '#{pane_title} #{pane_width} #{pane_height}' | awk '$1 == "yazi" { print ($2 >= 40 && $3 >= 15) ? "ok" : "bad" }')" = "ok"
-          test "$(tmux list-windows -t ci-workspace | wc -l | tr -d ' ')" = "5"
-          test "$(tmux list-windows -t ci-workspace -F '#I:#W' | tr '\n' ' ')" = "1:dev 2:ai 3:ssh 4:logs 5:btop "
-          test "$(tmux list-panes -t ci-workspace:1 | wc -l | tr -d ' ')" = "4"
-          test "$(tmux list-panes -t ci-workspace:2 | wc -l | tr -d ' ')" = "2"
-          test "$(tmux list-panes -t ci-workspace:3 | wc -l | tr -d ' ')" = "4"
-          test "$(tmux list-panes -t ci-workspace:4 | wc -l | tr -d ' ')" = "2"
-          test "$(tmux list-panes -t ci-workspace:5 | wc -l | tr -d ' ')" = "1"
-          test "$(tmux list-panes -t ci-workspace:2 -F '#{pane_title}' | tr '\n' ' ')" = "agent-1 agent-2 "
-          test "$(tmux list-panes -t ci-workspace:3 -F '#{pane_title}' | tr '\n' ' ')" = "ssh-1 ssh-3 ssh-2 ssh-4 "
-          test "$(tmux list-panes -t ci-workspace:4 -F '#{pane_title}' | tr '\n' ' ')" = "logs-1 logs-2 "
-          test "$(tmux list-panes -t ci-workspace:5 -F '#{pane_title}' | tr '\n' ' ')" = "btop "
+          while IFS=: read -r index window_name role entry_pane initial_pane configure_fn fit_fn; do
+            test "$(tmux display-message -p -t "ci-workspace:$window_name" '#{window_width}x#{window_height}')" = "120x36"
+            test "$(tmux show-window-options -t "ci-workspace:$window_name" -v aggressive-resize)" = "on"
+          done <<< "$workspace_manifest"
+          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_width} #{pane_height}' | awk '$1 == "editor" { print ($2 >= 70 && $3 >= 20) ? "ok" : "bad" }')" = "ok"
+          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_width} #{pane_height}' | awk '$1 == "files" { print ($2 >= 40 && $3 >= 15) ? "ok" : "bad" }')" = "ok"
+          test "$(tmux list-windows -t ci-workspace | wc -l | tr -d ' ')" = "$expected_workspace_count"
+          test "$(tmux list-windows -t ci-workspace -F '#I:#W' | tr '\n' ' ')" = "$expected_workspace_windows"
+          test "$(tmux list-panes -t ci-workspace:dev | wc -l | tr -d ' ')" = "4"
+          test "$(tmux list-panes -t ci-workspace:ai | wc -l | tr -d ' ')" = "2"
+          test "$(tmux list-panes -t ci-workspace:ssh | wc -l | tr -d ' ')" = "4"
+          test "$(tmux list-panes -t ci-workspace:logs | wc -l | tr -d ' ')" = "2"
+          test "$(tmux list-panes -t ci-workspace:btop | wc -l | tr -d ' ')" = "1"
+          test "$(tmux list-panes -t ci-workspace:ai -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "agent-1 agent-2 "
+          test "$(tmux list-panes -t ci-workspace:ssh -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "ssh-1 ssh-3 ssh-2 ssh-4 "
+          test "$(tmux list-panes -t ci-workspace:logs -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "logs-1 logs-2 "
+          test "$(tmux list-panes -t ci-workspace:btop -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "monitor "
           tmux show-hooks -t ci-workspace client-resized | grep -q -- '--fit-only'
           tmux show-hooks -t ci-workspace after-select-window | grep -q -- '--fit-only'
 
