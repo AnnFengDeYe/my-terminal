@@ -33,6 +33,8 @@ Create a daily tmux workspace:
     - right: logs-2 shell
   - window 5: btop
     - system monitor
+  - window 6: manual
+    - alias and function manual
 
 Options:
   --dir PATH      Use PATH as the workspace directory. Defaults to current directory.
@@ -188,11 +190,19 @@ run_monitor() {
   exec_shell
 }
 
+run_manual() {
+  cd "$WORK_DIR"
+  clear 2>/dev/null || true
+  WORKPLACE_MANUAL_FULL_HEIGHT=1 "$SCRIPT_DIR/workplace_manual.sh" --interactive || true
+  exec_shell
+}
+
 run_pane_mode() {
   case "$PANE_MODE" in
     editor) run_editor ;;
     files) run_files ;;
     git) run_git ;;
+    manual) run_manual ;;
     monitor) run_monitor ;;
     shell) run_shell ;;
     *) die "unknown pane mode: $PANE_MODE" ;;
@@ -209,6 +219,7 @@ WORKSPACE_WINDOWS=(
   "ssh|secondary||shell|configure_ssh_window|fit_ssh_layout"
   "logs|secondary||shell|configure_logs_window|fit_logs_layout"
   "btop|secondary||monitor|configure_btop_window|fit_noop_layout"
+  "manual|secondary||manual|configure_manual_window|fit_noop_layout"
 )
 
 workspace_window_records() {
@@ -773,6 +784,16 @@ configure_btop_window() {
 
   btop_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
   set_workspace_pane_role "$btop_pane" monitor "btop"
+}
+
+configure_manual_window() {
+  local manual_pane
+  local window_id="$1"
+
+  set_window_pane_options "$window_id"
+
+  manual_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
+  set_workspace_pane_role "$manual_pane" manual "manual"
 }
 
 create_workspace_window() {

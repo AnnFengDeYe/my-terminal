@@ -17,12 +17,15 @@
 
 `workspace_layout.sh` 会创建一个可长期使用的 tmux 工作区，而不是只用于截图的演示画面：
 
-- 底部 **tmux workspace bar** 使用 `1:dev`、`2:ai`、`3:ssh`、`4:logs`、`5:btop` 在不同工作上下文之间切换。
+- 底部 **tmux workspace bar** 使用 `1:dev`、`2:ai`、`3:ssh`、`4:logs`、`5:btop`、`6:manual` 在不同工作上下文之间切换。
 - **`1:dev`**：主开发工作区，包含 `Code` / `Command` / `Files` / `Git` 四个 pane。
 - **`2:ai`**：AI 辅助工作区，默认左右二分为 `agent-1` / `agent-2`，可按需分别运行 Codex CLI。
 - **`3:ssh`**：远程连接工作区，默认四宫格 `ssh-1` 到 `ssh-4`，方便同时连接多个设备。
 - **`4:logs`**：测试、日志和 watch 命令工作区，默认左右二分为 `logs-1` / `logs-2`。
 - **`5:btop`**：单独的系统监控页面，默认运行 `btop`。
+- **`6:manual`**：别名和函数说明书，可快速查询 `zshrc` 中常用命令的用途。
+
+`manual` 的说明数据来自 `configs/zsh/workplace_manual.tsv`；新增或调整别名后，可直接编辑这个表格补充说明。
 
 启动当前目录的工作区：
 

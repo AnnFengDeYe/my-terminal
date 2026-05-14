@@ -1,0 +1,40 @@
+# name	type	group	command	description	usage	source
+coding	alias	directory	cd $HOME/projects	Change into the common projects directory.	coding	configs/zsh/zshrc:93
+workplace	function	workspace	$MY_TERMINAL_HOME/scripts/workspace_layout.sh "$@"	Start or enter the daily tmux workspace for the current project.	workplace [--reset|--dir PATH|--session NAME]	configs/zsh/zshrc:112
+ls	alias	eza	eza --icons=always --group-directories-first --hyperlink	Show a compact directory listing with directories first and clickable paths.	ls [PATH]	configs/zsh/zshrc:123
+ll	alias	eza	eza -lah --icons=always --group-directories-first --git --octal-permissions	Show a detailed listing with hidden files, Git status, and octal permissions.	ll [PATH]	configs/zsh/zshrc:124
+la	alias	eza	eza -la --icons=always --group-directories-first	Show hidden files with directories first.	la [PATH]	configs/zsh/zshrc:125
+lt	alias	eza	eza --tree --icons=always --git-ignore --level=3	Show a three-level directory tree.	lt [PATH]	configs/zsh/zshrc:126
+tree	alias	eza	eza --tree --icons=always --git-ignore	Show a full directory tree while respecting gitignore.	tree [PATH]	configs/zsh/zshrc:127
+cat	alias	bat	bat --paging=never	Print short files with syntax highlighting.	cat FILE	configs/zsh/zshrc:136
+less	alias	bat	bat	Read longer files with bat paging and syntax highlighting.	less FILE	configs/zsh/zshrc:137
+v	alias	neovim	nvim	Open Neovim quickly.	v [PATH]	configs/zsh/zshrc:146
+vi	alias	neovim	nvim	Use Neovim when typing vi.	vi [PATH]	configs/zsh/zshrc:147
+vim	alias	neovim	nvim	Use Neovim when typing vim.	vim [PATH]	configs/zsh/zshrc:148
+bt	alias	btop	btop	Open the btop system monitor.	bt	configs/zsh/zshrc:156
+gthemes	alias	ghostty	ghostty +list-themes	List available Ghostty themes.	gthemes	configs/zsh/zshrc:165
+j	alias	zoxide	z	Jump to a directory using zoxide history.	j QUERY	configs/zsh/zshrc:190
+ji	alias	zoxide	zi	Interactively choose and jump to a directory with zoxide.	ji QUERY	configs/zsh/zshrc:191
+zquery	alias	zoxide	zoxide query -s -l	List zoxide entries and scores.	zquery	configs/zsh/zshrc:192
+ff	alias	fzf	fd --type f --hidden --follow --exclude .git --exclude node_modules --exclude .cache --exclude .cmake --exclude .zsh_sessions --exclude Library | fzf --preview "bat --color=always --style=numbers --line-range=:300 {}" --preview-window=right:60%:wrap	Search all files, including hidden files, with a bat preview.	ff	configs/zsh/zshrc:238
+find	alias	fd	fd	Use fd as a faster, simpler find replacement.	find PATTERN	configs/zsh/zshrc:258
+fda	alias	fd	fd --hidden --follow --exclude .git	Search all paths, including hidden paths, while excluding .git.	fda PATTERN	configs/zsh/zshrc:259
+fdd	alias	fd	fd --type d	Search directories only.	fdd PATTERN	configs/zsh/zshrc:260
+fdf	alias	fd	fd --type f	Search files only.	fdf PATTERN	configs/zsh/zshrc:261
+fchanged	alias	fd	fd --changed-within	Find recently changed paths by duration.	fchanged DURATION	configs/zsh/zshrc:262
+grep	alias	ripgrep	rg	Use ripgrep as a faster grep replacement.	grep PATTERN [PATH]	configs/zsh/zshrc:270
+rgi	alias	ripgrep	rg -i	Search case-insensitively with ripgrep.	rgi PATTERN [PATH]	configs/zsh/zshrc:271
+rgc	function	ripgrep	rg -C "$1" -- "$2"	Search with a configurable number of context lines.	rgc <context_lines> <search_text>	configs/zsh/zshrc:273
+rga	function	ripgrep	rg --hidden --follow --glob '!.git' --glob '!node_modules' --glob '!.cache' "$@"	Search hidden files while excluding common noisy directories.	rga PATTERN [PATH]	configs/zsh/zshrc:290
+y	function	yazi	yazi "$@" --cwd-file="$tmp"	Open Yazi and sync the shell directory after exit.	y [PATH]	configs/zsh/zshrc:304
+gsw	function	git	git for-each-ref ... | fzf ... | git switch	Choose and switch Git branches with fzf.	gsw	configs/zsh/zshrc:320
+lg	alias	lazygit	lazygit	Open the lazygit interactive Git UI.	lg	configs/zsh/zshrc:361
+tls	alias	tmux	tmux ls	List tmux sessions.	tls	configs/zsh/zshrc:369
+tnew	alias	tmux	tmux new -s	Create a named tmux session.	tnew SESSION	configs/zsh/zshrc:370
+ta	alias	tmux	tmux attach -t	Attach to a named tmux session.	ta SESSION	configs/zsh/zshrc:371
+td	alias	tmux	tmux detach	Detach from the current tmux session without stopping tasks.	td	configs/zsh/zshrc:372
+tk	alias	tmux	tmux kill-session -t	Kill a named tmux session.	tk SESSION	configs/zsh/zshrc:373
+tka	alias	tmux	tmux kill-server	Kill the tmux server and all sessions.	tka	configs/zsh/zshrc:374
+tagent	alias	tmux	tmux new -A -s agent-dev	Enter or create the agent-dev tmux session.	tagent	configs/zsh/zshrc:376
+topenclaw	alias	tmux	tmux new -A -s openclaw	Enter or create the openclaw tmux session.	topenclaw	configs/zsh/zshrc:377
+tdaily	alias	tmux	tmux new -A -s daily-agent	Enter or create the daily-agent tmux session.	tdaily	configs/zsh/zshrc:378
