@@ -1,0 +1,5 @@
+[mgr]
+prepend_keymap = [
+  { on = "q", run = "close", desc = "Close current tab, or quit if it is the last tab" },
+  { on = "Q", run = "quit",  desc = "Quit Yazi immediately" },
+]
