@@ -226,14 +226,13 @@ fzf_lines() {
     }
     /^[[:space:]]*#/ || NF == 0 { next }
     {
-      row = sprintf("%s %s %s %s", field("36;1", $1, 16), type_style($2, 10), field("34", $3, 14), $5)
-      printf "%s\t%s\n", $1, row
+      printf "%s\t%s\t%s\t%s\n", c("36;1", $1), type_style($2, 10), field("34", $3, 14), $5
     }
   ' "$CONFIG_FILE"
 }
 
 interactive_manual() {
-  local fzf_height_opts=()
+  local fzf_args
   local name
   local preview_cmd
   local query
@@ -242,22 +241,23 @@ interactive_manual() {
   ensure_config
 
   if command -v fzf >/dev/null 2>&1; then
+    preview_cmd="WORKPLACE_MANUAL_CONFIG=$(shell_quote "$CONFIG_FILE") $(shell_quote "$SCRIPT_DIR/workplace_manual.sh") --color always --show {1}"
+    fzf_args=(
+      --ansi
+      --prompt='manual> '
+      --delimiter=$'\t'
+      '--nth=1,3'
+      --preview="$preview_cmd"
+      --preview-window=right:60%:wrap
+      '--color=fg:252,bg:-1,hl:39,fg+:255,bg+:236,hl+:81,pointer:81,marker:219,prompt:39,spinner:39,header:244,border:240'
+    )
     if [[ "${WORKPLACE_MANUAL_FULL_HEIGHT:-0}" == "1" ]]; then
-      fzf_height_opts=(--height=100%)
+      fzf_args+=(--height=100%)
     fi
 
-    preview_cmd="WORKPLACE_MANUAL_CONFIG=$(shell_quote "$CONFIG_FILE") $(shell_quote "$SCRIPT_DIR/workplace_manual.sh") --color always --show {1}"
     selected="$(
       fzf_lines |
-        fzf \
-          --ansi \
-          "${fzf_height_opts[@]}" \
-          --prompt='manual> ' \
-          --delimiter=$'\t' \
-          --with-nth=2 \
-          --preview="$preview_cmd" \
-          --preview-window=right:60%:wrap \
-          --color='fg:252,bg:-1,hl:39,fg+:255,bg+:236,hl+:81,pointer:81,marker:219,prompt:39,spinner:39,header:244,border:240'
+        fzf "${fzf_args[@]}"
     )" || return 0
 
     name="${selected%%$'\t'*}"
