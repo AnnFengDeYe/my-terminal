@@ -12,6 +12,7 @@ PANE_MODE=""
 FIT_ONLY=0
 FIT_TARGET=""
 LIST_WINDOWS=0
+SELECT_ENTRY_ONLY=0
 
 usage() {
   cat <<'EOF'
@@ -102,6 +103,11 @@ parse_args() {
         ;;
       --list-windows)
         LIST_WINDOWS=1
+        ATTACH=0
+        shift
+        ;;
+      --select-entry-only)
+        SELECT_ENTRY_ONLY=1
         ATTACH=0
         shift
         ;;
@@ -484,6 +490,61 @@ pane_id_by_role_or_title() {
   pane_id_by_role "$window_id" "$role" || pane_id_by_title "$window_id" "$title"
 }
 
+pane_is_plain_shell() {
+  local current_command
+  local in_mode
+  local pane_id="$1"
+  local uses_alternate_screen
+
+  read -r current_command in_mode uses_alternate_screen < <(
+    tmux display-message -p -t "$pane_id" '#{pane_current_command} #{pane_in_mode} #{alternate_on}' 2>/dev/null ||
+      printf 'unknown 1 1\n'
+  )
+
+  [[ "$in_mode" == "0" && "$uses_alternate_screen" == "0" ]] || return 1
+  case "$current_command" in
+    bash|zsh|fish|sh) return 0 ;;
+  esac
+
+  return 1
+}
+
+clear_shell_prompt_input() {
+  local pane_id="$1"
+
+  pane_is_plain_shell "$pane_id" || return 0
+  tmux send-keys -t "$pane_id" C-u >/dev/null 2>&1 || true
+}
+
+cancel_pane_mode() {
+  local in_mode
+  local pane_id="$1"
+
+  in_mode="$(tmux display-message -p -t "$pane_id" '#{pane_in_mode}' 2>/dev/null || printf '0')"
+  [[ "$in_mode" == "1" ]] || return 0
+  tmux copy-mode -q -t "$pane_id" >/dev/null 2>&1 || true
+}
+
+shield_workspace_entry_pane() {
+  local pane_id
+  local pane_title
+  local window_id
+  local window_name
+
+  window_name="$(workspace_entry_window_name)"
+  pane_title="$(workspace_entry_pane_title)"
+  window_id="$(window_id_by_name "$window_name" || true)"
+  [[ -n "$window_id" ]] || return 0
+
+  pane_id="$(pane_id_by_role_or_title "$window_id" "$pane_title" "$pane_title" || true)"
+  [[ -n "$pane_id" ]] || return 0
+
+  tmux select-window -t "$window_id" >/dev/null 2>&1 || return 0
+  tmux select-pane -t "$pane_id" >/dev/null 2>&1 || return 0
+  pane_is_plain_shell "$pane_id" || return 0
+  tmux copy-mode -H -t "$pane_id" >/dev/null 2>&1 || true
+}
+
 fit_dev_layout() {
   local bottom_height
   local git_pane
@@ -622,6 +683,7 @@ fit_workspace_to_terminal() {
 select_workspace_entry_pane() {
   local pane_id
   local pane_title
+  local restore_mode="${1:-}"
   local window_id
   local window_name
 
@@ -631,9 +693,22 @@ select_workspace_entry_pane() {
   [[ -n "$window_id" ]] || return 0
 
   tmux select-window -t "$window_id" >/dev/null 2>&1 || return 0
-  pane_id="$(pane_id_by_title "$window_id" "$pane_title" || true)"
+  pane_id="$(pane_id_by_role_or_title "$window_id" "$pane_title" "$pane_title" || true)"
   [[ -n "$pane_id" ]] || return 0
+  [[ "$restore_mode" == "restore" ]] && cancel_pane_mode "$pane_id"
+  clear_shell_prompt_input "$pane_id"
   tmux select-pane -t "$pane_id" >/dev/null 2>&1 || true
+}
+
+schedule_workspace_entry_pane() {
+  local command
+  local delay="${WORKSPACE_ENTRY_DELAY:-1.2}"
+
+  # Some terminal feature probes can arrive after attach; shield the shell prompt
+  # briefly, then restore the intended entry pane once the client settles.
+  command="$(shell_quote "$SCRIPT_PATH") --dir $(shell_quote "$WORK_DIR") --session $(shell_quote "$SESSION") --select-entry-only >/dev/null 2>&1 || true"
+
+  tmux run-shell -b -d "$delay" "$command" >/dev/null 2>&1 || true
 }
 
 set_workspace_hooks() {
@@ -653,14 +728,17 @@ set_workspace_hooks() {
 attach_or_switch() {
   set_workspace_hooks
   fit_workspace_to_terminal
-  select_workspace_entry_pane
 
   if [[ "$ATTACH" != "1" ]]; then
+    select_workspace_entry_pane
     printf 'Created tmux session: %s\n' "$SESSION"
     printf 'Workspace: %s\n' "$WORK_DIR"
     printf 'Attach with: tmux attach -t %s\n' "$SESSION"
     return 0
   fi
+
+  shield_workspace_entry_pane
+  schedule_workspace_entry_pane
 
   if [[ -n "${TMUX:-}" ]]; then
     tmux switch-client -t "$SESSION"
@@ -917,6 +995,12 @@ main() {
 
   if [[ "$LIST_WINDOWS" == "1" ]]; then
     workspace_window_manifest
+    exit 0
+  fi
+
+  if [[ "$SELECT_ENTRY_ONLY" == "1" ]]; then
+    command -v tmux >/dev/null 2>&1 || die "tmux is required"
+    select_workspace_entry_pane restore
     exit 0
   fi
 
