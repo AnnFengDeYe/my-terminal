@@ -19,7 +19,7 @@ Create a tmux session arranged for README screenshots:
   - top right: yazi
   - bottom right: lazygit
   - bottom: starship prompt plus install preview / doctor output
-  - windows: 1:dev  2:ai  3:ssh  4:logs
+  - windows: 1:dev  2:agent  3:ssh  4:logs
 
 Options:
   --session NAME  Use a custom tmux session name.
@@ -276,7 +276,7 @@ create_session() {
   tmux select-pane -t "$right_bottom" -T "lazygit"
   tmux select-pane -t "$bottom" -T "preview + doctor"
 
-  tmux new-window -d -t "$SESSION" -n ai -c "$REPO_ROOT"
+  tmux new-window -d -t "$SESSION" -n agent -c "$REPO_ROOT"
   tmux new-window -d -t "$SESSION" -n ssh -c "$REPO_ROOT"
   tmux new-window -d -t "$SESSION" -n logs -c "$REPO_ROOT"
   tmux move-window -r -t "$SESSION"

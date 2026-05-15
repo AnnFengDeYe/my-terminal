@@ -24,7 +24,7 @@ Create a daily tmux workspace:
     - left bottom: shell
     - right top: yazi
     - right bottom: lazygit
-  - window 2: ai
+  - window 2: agent
     - left: agent-1 shell
     - right: agent-2 shell
   - window 3: ssh
@@ -221,7 +221,7 @@ shell_quote() {
 
 WORKSPACE_WINDOWS=(
   "dev|primary|shell|editor|configure_dev_window|fit_dev_layout"
-  "ai|secondary||shell|configure_ai_window|fit_ai_layout"
+  "agent|secondary||shell|configure_agent_window|fit_agent_layout"
   "ssh|secondary||shell|configure_ssh_window|fit_ssh_layout"
   "logs|secondary||shell|configure_logs_window|fit_logs_layout"
   "btop|secondary||monitor|configure_btop_window|fit_noop_layout"
@@ -579,7 +579,7 @@ fit_dev_layout() {
   tmux resize-pane -t "$git_pane" -y "$right_bottom_height" >/dev/null 2>&1 || true
 }
 
-fit_ai_layout() {
+fit_agent_layout() {
   local agent_1_pane
   local agent_2_pane
   local window_id="$1"
@@ -798,7 +798,7 @@ configure_dev_window() {
   fit_dev_layout "$window_id"
 }
 
-configure_ai_window() {
+configure_agent_window() {
   local agent_1_pane
   local agent_2_pane
   local script_cmd="$2"
@@ -811,7 +811,7 @@ configure_ai_window() {
 
   set_workspace_pane_role "$agent_1_pane" agent-1 "agent-1"
   set_workspace_pane_role "$agent_2_pane" agent-2 "agent-2"
-  fit_ai_layout "$window_id"
+  fit_agent_layout "$window_id"
 }
 
 configure_ssh_window() {
