@@ -7,7 +7,9 @@
 
 [中文](README.md) | [English](README.en.md)
 
-一个跨平台、可恢复、可测试的 **Terminal Starter Kit**，用于快速部署一套开箱即用的高效终端环境。
+**跨平台 · 开箱即用 · 可复现的 Terminal Starter Kit。**
+
+优秀的终端工具数不胜数，但把它们拼凑在一起往往需要耗费大量时间解决兼容与依赖问题。本项目分享了一套基于我个人操作习惯与视觉审美的配置方案。它处理了常见插件间的协同摩擦，快速还原一套顺手、开箱即用的终端工作流。
 
 支持 macOS、Debian、Ubuntu、Raspberry Pi OS、Arch Linux 和 Fedora。仓库统一管理 CLI 工具、终端字体和 dotfiles 软链接；默认入口不会直接写入系统，所有真实写入操作都需要显式确认，并会在覆盖前备份原配置。
 

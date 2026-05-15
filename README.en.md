@@ -7,7 +7,9 @@
 
 [English](README.en.md) | [中文](README.md)
 
-A cross-platform, restorable, and testable **Terminal Starter Kit** for quickly deploying a ready-to-use terminal environment.
+**Cross-platform · Out-of-the-box · Reproducible Terminal Starter Kit.**
+
+While there is no shortage of excellent terminal tools, piecing them together often requires spending countless hours resolving compatibility and dependency issues. This project shares a configuration setup based on my personal workflow habits and visual aesthetics. It resolves the common friction and conflicts among plugins, allowing you to quickly replicate a smooth, out-of-the-box terminal workflow.
 
 It supports macOS, Debian, Ubuntu, Raspberry Pi OS, Arch Linux, and Fedora. The repository manages CLI tools, terminal fonts, and dotfile symlinks. The default entrypoint does not write to the system directly; all real writes require explicit confirmation, and existing configs are backed up before replacement.
 
