@@ -47,39 +47,24 @@ use_color() {
   esac
 }
 
-table_awk() {
+manual_rows() {
   local query="${1:-}"
-  local color=0
-
-  use_color && color=1
+  local show_header="${2:-1}"
 
   ensure_config
-  awk -F '\t' -v query="$query" -v color="$color" '
-    function c(code, value) {
-      return color ? sprintf("\033[%sm%s\033[0m", code, value) : value
-    }
-    function field(code, value, width) {
-      return c(code, sprintf("%-" width "s", value))
-    }
-    function type_style(value, width) {
-      if (value == "alias") {
-        return field("33;1", value, width)
-      }
-      if (value == "function") {
-        return field("35;1", value, width)
-      }
-      return field("37", value, width)
-    }
+  awk -F '\t' -v query="$query" -v show_header="$show_header" '
     BEGIN {
       q = tolower(query)
-      printf "%s %s %s %s\n", field("36;1", "name", 16), field("35;1", "type", 10), field("34;1", "group", 14), c("1", "description")
-      printf "%s %s %s %s\n", field("2", "----", 16), field("2", "----", 10), field("2", "-----", 14), c("2", "-----------")
+      if (show_header) {
+        print "name\ttype\tgroup\tdescription"
+        print "----\t----\t-----\t-----------"
+      }
     }
     /^[[:space:]]*#/ || NF == 0 { next }
     {
       haystack = tolower($1 " " $2 " " $3 " " $4 " " $5 " " $6 " " $7)
       if (q == "" || index(haystack, q) > 0) {
-        printf "%s %s %s %s\n", field("36;1", $1, 16), type_style($2, 10), field("34", $3, 14), $5
+        printf "%s\t%s\t%s\t%s\n", $1, $2, $3, $5
         found = 1
       }
     }
@@ -89,6 +74,77 @@ table_awk() {
       }
     }
   ' "$CONFIG_FILE"
+}
+
+columnize_manual_rows() {
+  if command -v column >/dev/null 2>&1; then
+    column -t -s $'\t'
+    return 0
+  fi
+
+  awk -F '\t' '{ printf "%-16s  %-10s  %-14s  %s\n", $1, $2, $3, $4 }'
+}
+
+colorize_manual_columns() {
+  local color=0
+  local mode="${1:-auto}"
+
+  if [[ "$mode" == "always" ]]; then
+    color=1
+  elif use_color; then
+    color=1
+  fi
+
+  awk -v color="$color" '
+    function c(code, value) {
+      return color ? sprintf("\033[%sm%s\033[0m", code, value) : value
+    }
+    function styled_type(value) {
+      if (value == "alias") {
+        return c("33;1", value)
+      }
+      if (value == "function") {
+        return c("35;1", value)
+      }
+      return c("37", value)
+    }
+    function next_gap() {
+      rest = substr(line, pos)
+      if (match(rest, /^ +/)) {
+        gap = substr(rest, 1, RLENGTH)
+        pos += RLENGTH
+        return gap
+      }
+      return ""
+    }
+    {
+      line = $0
+      name = $1
+      type = $2
+      group = $3
+      pos = 1 + length(name)
+      sep1 = next_gap()
+      pos += length(type)
+      sep2 = next_gap()
+      pos += length(group)
+      sep3 = next_gap()
+      description = substr(line, pos)
+
+      if (name == "name" && type == "type" && group == "group") {
+        print c("36;1", name) sep1 c("35;1", type) sep2 c("34;1", group) sep3 c("1", description)
+      } else if (name == "----" && type == "----" && group == "-----") {
+        print c("2", name) sep1 c("2", type) sep2 c("2", group) sep3 c("2", description)
+      } else {
+        print c("36;1", name) sep1 styled_type(type) sep2 c("34", group) sep3 description
+      }
+    }
+  '
+}
+
+table_awk() {
+  local query="${1:-}"
+
+  manual_rows "$query" 1 | columnize_manual_rows | colorize_manual_columns
 }
 
 print_table() {
@@ -207,28 +263,7 @@ show_entry() {
 }
 
 fzf_lines() {
-  ensure_config
-  awk -F '\t' '
-    function c(code, value) {
-      return sprintf("\033[%sm%s\033[0m", code, value)
-    }
-    function field(code, value, width) {
-      return c(code, sprintf("%-" width "s", value))
-    }
-    function type_style(value, width) {
-      if (value == "alias") {
-        return field("33;1", value, width)
-      }
-      if (value == "function") {
-        return field("35;1", value, width)
-      }
-      return field("37", value, width)
-    }
-    /^[[:space:]]*#/ || NF == 0 { next }
-    {
-      printf "%s\t%s\t%s\t%s\n", c("36;1", $1), type_style($2, 10), field("34", $3, 14), $5
-    }
-  ' "$CONFIG_FILE"
+  manual_rows "" 0 | columnize_manual_rows | colorize_manual_columns always
 }
 
 interactive_manual() {
@@ -245,7 +280,7 @@ interactive_manual() {
     fzf_args=(
       --ansi
       --prompt='manual> '
-      --delimiter=$'\t'
+      '--delimiter=[[:space:]][[:space:]]+'
       '--nth=1,3'
       --preview="$preview_cmd"
       --preview-window=right:60%:wrap
@@ -261,7 +296,7 @@ interactive_manual() {
         fzf "${fzf_args[@]}"
     )" || return 0
 
-    name="${selected%%$'\t'*}"
+    name="${selected%%[[:space:]]*}"
     clear 2>/dev/null || true
     COLOR_MODE="always"
     show_entry "$name"
