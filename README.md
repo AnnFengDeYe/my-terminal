@@ -17,7 +17,7 @@
 
 ![my-terminal workspace](assets/workspace-layout.jpg)
 
-`workspace_layout.sh` 会创建一个可长期使用的 tmux 工作区，而不是只用于截图的演示画面：
+`workspace_layout.sh` 会创建一个面向日常使用的长期 tmux 工作区：
 
 - 底部 **tmux workspace bar** 使用 `1:dev`、`2:ai`、`3:ssh`、`4:logs`、`5:btop`、`6:manual` 在不同工作上下文之间切换。
 - **`1:dev`**：主开发工作区，包含 `Code` / `Command` / `Files` / `Git` 四个 pane。

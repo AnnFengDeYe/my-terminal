@@ -17,7 +17,7 @@ It supports macOS, Debian, Ubuntu, Raspberry Pi OS, Arch Linux, and Fedora. The 
 
 ![my-terminal workspace](assets/workspace-layout.jpg)
 
-`workspace_layout.sh` creates a reusable tmux workspace for daily work, not just a screenshot demo:
+`workspace_layout.sh` creates a long-lived tmux workspace designed for daily use:
 
 - The bottom **tmux workspace bar** switches between contexts with `1:dev`, `2:ai`, `3:ssh`, `4:logs`, `5:btop`, and `6:manual`.
 - **`1:dev`**: the main development workspace with `Code` / `Command` / `Files` / `Git` panes.
