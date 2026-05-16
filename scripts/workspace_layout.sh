@@ -22,8 +22,8 @@ Create a daily tmux workspace:
   - window 1: dev
     - left top: nvim
     - left bottom: shell
-    - right top: yazi
-    - right bottom: lazygit
+    - right top: lazygit
+    - right bottom: yazi
   - window 2: agent
     - left: agent-1 shell
     - right: agent-2 shell
@@ -574,9 +574,9 @@ fit_dev_layout() {
   ((right_bottom_height < 6)) && right_bottom_height=6
 
   tmux select-layout -E -t "$window_id" >/dev/null 2>&1 || true
-  tmux resize-pane -t "$yazi_pane" -x "$right_width" >/dev/null 2>&1 || true
+  tmux resize-pane -t "$git_pane" -x "$right_width" >/dev/null 2>&1 || true
   tmux resize-pane -t "$shell_pane" -y "$bottom_height" >/dev/null 2>&1 || true
-  tmux resize-pane -t "$git_pane" -y "$right_bottom_height" >/dev/null 2>&1 || true
+  tmux resize-pane -t "$yazi_pane" -y "$right_bottom_height" >/dev/null 2>&1 || true
 }
 
 fit_agent_layout() {
@@ -787,13 +787,13 @@ configure_dev_window() {
   set_window_pane_options "$window_id"
 
   top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
-  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane files")"
+  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane git")"
   bottom="$(tmux split-window -v -l 32% -P -F '#{pane_id}' -t "$top_left" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
-  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane git")"
+  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane files")"
 
   set_workspace_pane_role "$top_left" editor "nvim"
-  set_workspace_pane_role "$right_top" files "yazi"
-  set_workspace_pane_role "$right_bottom" git "lazygit"
+  set_workspace_pane_role "$right_top" git "lazygit"
+  set_workspace_pane_role "$right_bottom" files "yazi"
   set_workspace_pane_role "$bottom" shell "shell"
   fit_dev_layout "$window_id"
 }

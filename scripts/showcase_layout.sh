@@ -16,8 +16,8 @@ Usage: scripts/showcase_layout.sh [--session NAME] [--reset] [--no-attach]
 
 Create a tmux session arranged for README screenshots:
   - left: nvim / LazyVim
-  - top right: yazi
-  - bottom right: lazygit
+  - top right: lazygit
+  - bottom right: yazi
   - bottom: starship prompt plus install preview / doctor output
   - windows: 1:dev  2:agent  3:ssh  4:logs
 
@@ -268,12 +268,12 @@ create_session() {
 
   top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
   bottom="$(tmux split-window -v -l 32% -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane prompt")"
-  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane files")"
-  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$REPO_ROOT" "$script_cmd --pane git")"
+  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane git")"
+  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$REPO_ROOT" "$script_cmd --pane files")"
 
   tmux select-pane -t "$top_left" -T "nvim / LazyVim"
-  tmux select-pane -t "$right_top" -T "yazi files"
-  tmux select-pane -t "$right_bottom" -T "lazygit"
+  tmux select-pane -t "$right_top" -T "lazygit"
+  tmux select-pane -t "$right_bottom" -T "yazi files"
   tmux select-pane -t "$bottom" -T "preview + doctor"
 
   tmux new-window -d -t "$SESSION" -n agent -c "$REPO_ROOT"
