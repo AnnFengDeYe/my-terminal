@@ -10,6 +10,8 @@ LANGUAGE="zh"
 . "$SCRIPT_DIR/config_sources.sh"
 # shellcheck source=scripts/path_helpers.sh
 . "$SCRIPT_DIR/path_helpers.sh"
+# shellcheck source=scripts/common.sh
+. "$SCRIPT_DIR/common.sh"
 
 PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/snap/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export PATH
@@ -57,17 +59,6 @@ is_zh() {
   [[ "$LANGUAGE" == "zh" ]]
 }
 
-detect_default_pm() {
-  local os="$1"
-  case "$os" in
-    macos) printf '%s\n' "brew" ;;
-    debian|ubuntu|raspberrypi) printf '%s\n' "apt" ;;
-    arch) printf '%s\n' "pacman" ;;
-    fedora) printf '%s\n' "dnf" ;;
-    *) printf '%s\n' "unknown" ;;
-  esac
-}
-
 tool_state() {
   local label="$1"
   shift
@@ -89,34 +80,6 @@ tool_state() {
   else
     printf '  [missing]   %s\n' "$label"
   fi
-}
-
-find_zsh_syntax_highlighting() {
-  local brew_prefix=""
-  local candidate
-  local candidates=()
-
-  if command -v brew >/dev/null 2>&1; then
-    brew_prefix="$(brew --prefix 2>/dev/null || true)"
-    if [[ -n "$brew_prefix" ]]; then
-      candidates+=("$brew_prefix/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh")
-    fi
-  fi
-
-  candidates+=(
-    "/opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-    "/usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-    "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-  )
-
-  for candidate in "${candidates[@]}"; do
-    if [[ -f "$candidate" ]]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-
-  return 1
 }
 
 syntax_highlighting_state() {

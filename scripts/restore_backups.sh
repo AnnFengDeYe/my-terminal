@@ -9,6 +9,8 @@ TARGET_HOME="${TEST_HOME:-$HOME}"
 . "$SCRIPT_DIR/config_sources.sh"
 # shellcheck source=scripts/path_helpers.sh
 . "$SCRIPT_DIR/path_helpers.sh"
+# shellcheck source=scripts/common.sh
+. "$SCRIPT_DIR/common.sh"
 
 DRY_RUN=0
 YES=0
@@ -52,13 +54,6 @@ parse_args() {
         ;;
     esac
   done
-}
-
-ensure_safe_home() {
-  [[ -n "$TARGET_HOME" ]] || die "target HOME is empty"
-  [[ "$TARGET_HOME" == /* ]] || die "target HOME must be absolute: $TARGET_HOME"
-  [[ "$TARGET_HOME" != "/" ]] || die "refusing to use / as HOME"
-  [[ "$TARGET_HOME" != *$'\n'* ]] || die "refusing HOME with newline"
 }
 
 ensure_under_home() {

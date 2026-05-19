@@ -4,6 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$SCRIPT_DIR"
 
+# shellcheck source=scripts/common.sh
+. "$REPO_ROOT/scripts/common.sh"
+
 DRY_RUN=0
 YES=0
 DO_BACKUP=0
@@ -43,27 +46,6 @@ EOF
 die() {
   printf 'ERROR: %s\n' "$*" >&2
   exit 1
-}
-
-detect_default_pm() {
-  local os="$1"
-  case "$os" in
-    macos)
-      printf '%s\n' "brew"
-      ;;
-    debian|ubuntu|raspberrypi)
-      printf '%s\n' "apt"
-      ;;
-    arch)
-      printf '%s\n' "pacman"
-      ;;
-    fedora)
-      printf '%s\n' "dnf"
-      ;;
-    *)
-      printf '%s\n' "unknown"
-      ;;
-  esac
 }
 
 parse_args() {

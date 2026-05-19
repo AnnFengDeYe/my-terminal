@@ -9,6 +9,8 @@ TARGET_HOME="${TEST_HOME:-$HOME}"
 . "$SCRIPT_DIR/config_sources.sh"
 # shellcheck source=scripts/path_helpers.sh
 . "$SCRIPT_DIR/path_helpers.sh"
+# shellcheck source=scripts/common.sh
+. "$SCRIPT_DIR/common.sh"
 
 PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/snap/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 export PATH
@@ -56,34 +58,6 @@ check_any_cmd() {
   done
 
   fail "$label not found"
-}
-
-find_zsh_syntax_highlighting() {
-  local brew_prefix=""
-  local candidate
-  local candidates=()
-
-  if command -v brew >/dev/null 2>&1; then
-    brew_prefix="$(brew --prefix 2>/dev/null || true)"
-    if [[ -n "$brew_prefix" ]]; then
-      candidates+=("$brew_prefix/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh")
-    fi
-  fi
-
-  candidates+=(
-    "/opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-    "/usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-    "/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-  )
-
-  for candidate in "${candidates[@]}"; do
-    if [[ -f "$candidate" ]]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-
-  return 1
 }
 
 check_zsh_syntax_highlighting() {

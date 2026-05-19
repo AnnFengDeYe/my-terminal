@@ -4,6 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 
+# shellcheck source=scripts/common.sh
+. "$SCRIPT_DIR/common.sh"
+
 DRY_RUN=0
 YES=0
 INSTALL_GUI_APPS=0
@@ -72,28 +75,6 @@ append_packages() {
     [[ -n "$line" ]] || continue
     PACKAGES+=("$line")
   done < "$file"
-}
-
-detect_default_package_manager() {
-  OS_NAME="$("$SCRIPT_DIR/detect_os.sh")"
-
-  case "$OS_NAME" in
-    macos)
-      printf '%s\n' "brew"
-      ;;
-    debian|ubuntu|raspberrypi)
-      printf '%s\n' "apt"
-      ;;
-    arch)
-      printf '%s\n' "pacman"
-      ;;
-    fedora)
-      printf '%s\n' "dnf"
-      ;;
-    *)
-      printf '%s\n' "unknown"
-      ;;
-  esac
 }
 
 install_brew() {
@@ -290,7 +271,7 @@ main() {
 
   OS_NAME="$("$SCRIPT_DIR/detect_os.sh")"
   if [[ -z "$PACKAGE_MANAGER" ]]; then
-    PACKAGE_MANAGER="$(detect_default_package_manager)"
+    PACKAGE_MANAGER="$(detect_default_pm "$OS_NAME")"
   fi
 
   printf 'Detected OS: %s\n' "$OS_NAME"

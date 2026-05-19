@@ -12,7 +12,6 @@ OVERWRITE_REPO_COPY=0
 SANITIZE=0
 IMPORTED=0
 SKIPPED=0
-FAILED=0
 REPORT_LINES=""
 
 usage() {
@@ -351,7 +350,6 @@ main() {
   printf '\nImport summary:\n'
   printf '  imported: %s\n' "$IMPORTED"
   printf '  skipped:  %s\n' "$SKIPPED"
-  printf '  failed:   %s\n' "$FAILED"
 }
 
 main "$@"

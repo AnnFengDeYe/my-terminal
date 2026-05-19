@@ -118,10 +118,6 @@ run_git() {
   exec_shell
 }
 
-print_command() {
-  printf '\n$ %s\n' "$*"
-}
-
 run_prompt() {
   local doctor_line
   local preview_line

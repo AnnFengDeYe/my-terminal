@@ -4,6 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TARGET_HOME="${TEST_HOME:-$HOME}"
 
+# shellcheck source=scripts/common.sh
+. "$SCRIPT_DIR/common.sh"
+
 DRY_RUN=0
 YES=0
 PACKAGE_MANAGER=""
@@ -73,16 +76,6 @@ parse_args() {
         ;;
     esac
   done
-}
-
-detect_default_package_manager() {
-  case "$OS_NAME" in
-    macos) printf '%s\n' "brew" ;;
-    debian|ubuntu|raspberrypi) printf '%s\n' "apt" ;;
-    arch) printf '%s\n' "pacman" ;;
-    fedora) printf '%s\n' "dnf" ;;
-    *) printf '%s\n' "unknown" ;;
-  esac
 }
 
 command_or_known_path() {
@@ -237,7 +230,7 @@ main() {
 
   OS_NAME="$("$SCRIPT_DIR/detect_os.sh")"
   if [[ -z "$PACKAGE_MANAGER" ]]; then
-    PACKAGE_MANAGER="$(detect_default_package_manager)"
+    PACKAGE_MANAGER="$(detect_default_pm "$OS_NAME")"
   fi
 
   printf 'Detected OS: %s\n' "$OS_NAME"

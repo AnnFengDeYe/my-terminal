@@ -7,6 +7,8 @@ OS_NAME="${TEST_OS:-$("$SCRIPT_DIR/detect_os.sh")}"
 
 # shellcheck source=scripts/backup.sh
 . "$SCRIPT_DIR/backup.sh"
+# shellcheck source=scripts/common.sh
+. "$SCRIPT_DIR/common.sh"
 
 DRY_RUN=0
 YES=0
@@ -54,13 +56,6 @@ parse_args() {
         ;;
     esac
   done
-}
-
-ensure_safe_home() {
-  [[ -n "$TARGET_HOME" ]] || die "target HOME is empty"
-  [[ "$TARGET_HOME" == /* ]] || die "target HOME must be absolute: $TARGET_HOME"
-  [[ "$TARGET_HOME" != "/" ]] || die "refusing to use / as HOME"
-  [[ "$TARGET_HOME" != *$'\n'* ]] || die "refusing HOME with newline"
 }
 
 ensure_under_home() {
