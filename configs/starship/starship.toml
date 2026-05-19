@@ -42,7 +42,7 @@ truncation_symbol = "…/"
 
 
 # ==========================================
-# 4. Python / C 版本
+# 4. Python / C / C++ 版本
 # ==========================================
 
 [python]
@@ -60,6 +60,7 @@ disabled = false
 symbol = " "
 style = "fg:#56B6C2 bold"
 format = " [$symbol$name $version]($style)"
+detect_files = ["CMakeLists.txt"]
 
 
 # ==========================================
