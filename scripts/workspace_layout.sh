@@ -13,6 +13,7 @@ FIT_ONLY=0
 FIT_TARGET=""
 LIST_WINDOWS=0
 SELECT_ENTRY_ONLY=0
+SCHEDULE_FIT=0
 
 usage() {
   cat <<'EOF'
@@ -42,14 +43,16 @@ Options:
   --session NAME  Use a custom tmux session name.
   --reset         Recreate the session if it already exists.
   --no-attach     Create the session and print its name without attaching.
-  --fit-only      Refit an existing session without creating or attaching.
+  --fit-only      Resize an existing session without creating or attaching.
   --target-window WINDOW_ID
-                  With --fit-only, refit only one tmux window. Used by hooks.
+                  With --fit-only, resize only one tmux window. Used by hooks.
+  --schedule-fit  Schedule a debounced fit pass. Used by hooks.
   --list-windows  Print the workspace window registry and exit.
   --help, -h      Show this help.
 
 Environment:
   WORKSPACE_COLS / WORKSPACE_LINES  Override the detected tmux size.
+  WORKSPACE_REFIT_LAYOUT=1          Reset pane layouts during --fit-only.
 EOF
 }
 
@@ -93,6 +96,11 @@ parse_args() {
         ;;
       --fit-only)
         FIT_ONLY=1
+        ATTACH=0
+        shift
+        ;;
+      --schedule-fit)
+        SCHEDULE_FIT=1
         ATTACH=0
         shift
         ;;
@@ -626,6 +634,34 @@ fit_window_layout() {
   "$fit_fn" "$window_id"
 }
 
+resize_window_to_terminal() {
+  local current_cols
+  local current_lines
+  local term_cols="$2"
+  local term_lines="$3"
+  local window_id="$1"
+
+  read -r current_cols current_lines < <(
+    tmux display-message -p -t "$window_id" '#{window_width} #{window_height}' 2>/dev/null ||
+      printf '0 0\n'
+  )
+
+  [[ "$current_cols" == "$term_cols" && "$current_lines" == "$term_lines" ]] && return 0
+  tmux resize-window -t "$window_id" -x "$term_cols" -y "$term_lines" >/dev/null 2>&1 || true
+}
+
+should_refit_pane_layout() {
+  [[ "${WORKSPACE_REFIT_LAYOUT:-0}" == "1" ]]
+}
+
+window_is_zoomed() {
+  local window_id="$1"
+  local zoomed
+
+  zoomed="$(tmux display-message -p -t "$window_id" '#{window_zoomed_flag}' 2>/dev/null || printf '0')"
+  [[ "$zoomed" == "1" ]]
+}
+
 fit_window_to_terminal() {
   local fit_fn="$2"
   local term_cols="$3"
@@ -635,8 +671,9 @@ fit_window_to_terminal() {
   [[ -n "$window_id" ]] || return 0
   tmux display-message -p -t "$window_id" '#{window_id}' >/dev/null 2>&1 || return 0
 
-  set_window_pane_options "$window_id"
-  tmux resize-window -t "$window_id" -x "$term_cols" -y "$term_lines" >/dev/null 2>&1 || true
+  resize_window_to_terminal "$window_id" "$term_cols" "$term_lines"
+  should_refit_pane_layout || return 0
+  window_is_zoomed "$window_id" && return 0
   fit_window_layout "$window_id" "$fit_fn"
 }
 
@@ -711,18 +748,34 @@ schedule_workspace_entry_pane() {
   tmux run-shell -b -d "$delay" "$command" >/dev/null 2>&1 || true
 }
 
+schedule_workspace_fit() {
+  local command
+  local delay="${WORKSPACE_FIT_DELAY:-0.25}"
+  local token="$$.$RANDOM"
+
+  tmux set-option -q -t "$SESSION" @workspace_fit_token "$token" >/dev/null 2>&1 || true
+  tmux set-option -q -t "$SESSION" @workspace_fit_cols "${WORKSPACE_COLS:-}" >/dev/null 2>&1 || true
+  tmux set-option -q -t "$SESSION" @workspace_fit_lines "${WORKSPACE_LINES:-}" >/dev/null 2>&1 || true
+
+  command="if [ \"\$(tmux show-options -qv -t $(shell_quote "$SESSION") @workspace_fit_token 2>/dev/null)\" = $(shell_quote "$token") ]; then "
+  command+="WORKSPACE_COLS=\"\$(tmux show-options -qv -t $(shell_quote "$SESSION") @workspace_fit_cols 2>/dev/null)\" "
+  command+="WORKSPACE_LINES=\"\$(tmux show-options -qv -t $(shell_quote "$SESSION") @workspace_fit_lines 2>/dev/null)\" "
+  command+="$(shell_quote "$SCRIPT_PATH") --dir $(shell_quote "$WORK_DIR") --session $(shell_quote "$SESSION") --fit-only >/dev/null 2>&1 || true; "
+  command+="fi"
+
+  tmux run-shell -b -d "$delay" "$command" >/dev/null 2>&1 || true
+}
+
 set_workspace_hooks() {
-  local fit_all_cmd
-  local fit_window_cmd
+  local schedule_fit_cmd
 
-  fit_all_cmd="WORKSPACE_COLS=#{client_width} WORKSPACE_LINES=#{client_height} $(shell_quote "$SCRIPT_PATH") --dir $(shell_quote "$WORK_DIR") --session $(shell_quote "$SESSION") --fit-only >/dev/null 2>&1 || true"
-  fit_window_cmd="WORKSPACE_COLS=#{client_width} WORKSPACE_LINES=#{client_height} $(shell_quote "$SCRIPT_PATH") --dir $(shell_quote "$WORK_DIR") --session $(shell_quote "$SESSION") --fit-only --target-window #{window_id} >/dev/null 2>&1 || true"
+  schedule_fit_cmd="WORKSPACE_COLS=#{client_width} WORKSPACE_LINES=#{client_height} $(shell_quote "$SCRIPT_PATH") --dir $(shell_quote "$WORK_DIR") --session $(shell_quote "$SESSION") --schedule-fit >/dev/null 2>&1 || true"
 
-  tmux set-hook -t "$SESSION" client-resized "run-shell -b '$fit_all_cmd'" >/dev/null 2>&1 || true
-  tmux set-hook -t "$SESSION" client-attached "run-shell -b '$fit_all_cmd'" >/dev/null 2>&1 || true
-  tmux set-hook -t "$SESSION" client-session-changed "run-shell -b '$fit_all_cmd'" >/dev/null 2>&1 || true
-  tmux set-hook -t "$SESSION" session-window-changed "run-shell -b '$fit_window_cmd'" >/dev/null 2>&1 || true
-  tmux set-hook -t "$SESSION" after-select-window "run-shell -b '$fit_window_cmd'" >/dev/null 2>&1 || true
+  tmux set-hook -t "$SESSION" client-resized "run-shell -b '$schedule_fit_cmd'" >/dev/null 2>&1 || true
+  tmux set-hook -t "$SESSION" client-attached "run-shell -b '$schedule_fit_cmd'" >/dev/null 2>&1 || true
+  tmux set-hook -t "$SESSION" client-session-changed "run-shell -b '$schedule_fit_cmd'" >/dev/null 2>&1 || true
+  tmux set-hook -u -t "$SESSION" session-window-changed >/dev/null 2>&1 || true
+  tmux set-hook -u -t "$SESSION" after-select-window >/dev/null 2>&1 || true
 }
 
 attach_or_switch() {
@@ -1005,6 +1058,12 @@ main() {
   if [[ "$SELECT_ENTRY_ONLY" == "1" ]]; then
     command -v tmux >/dev/null 2>&1 || die "tmux is required"
     select_workspace_entry_pane restore
+    exit 0
+  fi
+
+  if [[ "$SCHEDULE_FIT" == "1" ]]; then
+    command -v tmux >/dev/null 2>&1 || die "tmux is required"
+    schedule_workspace_fit
     exit 0
   fi
 

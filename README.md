@@ -43,7 +43,7 @@ workplace
 
 `workplace` 会启动或进入当前目录的日常 workspace；需要重建会话时可运行 `workplace --reset`。
 
-启动时会自动检测当前终端尺寸并让 tmux workspace 铺满整个终端窗口；进入已有 workspace 时也会重新调整各窗口布局，避免旧尺寸留下空白占位。需要固定尺寸时可设置 `WORKSPACE_COLS` / `WORKSPACE_LINES`。
+启动时会自动检测当前终端尺寸并让 tmux workspace 铺满整个终端窗口；进入已有 workspace 时只同步窗口尺寸，保留当前 pane 比例和 zoom 状态，避免局部放大被恢复成默认布局。需要固定尺寸时可设置 `WORKSPACE_COLS` / `WORKSPACE_LINES`；需要重建默认布局时使用 `workplace --reset`。
 
 为其他项目启动工作区：
 
