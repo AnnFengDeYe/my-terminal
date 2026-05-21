@@ -702,7 +702,7 @@ select_workspace_entry_pane() {
 
 schedule_workspace_entry_pane() {
   local command
-  local delay="${WORKSPACE_ENTRY_DELAY:-1.2}"
+  local delay="${WORKSPACE_ENTRY_DELAY:-2.5}"
 
   # Some terminal feature probes can arrive after attach; shield the shell prompt
   # briefly, then restore the intended entry pane once the client settles.
@@ -727,6 +727,10 @@ set_workspace_hooks() {
 
 attach_or_switch() {
   set_workspace_hooks
+  if [[ "$ATTACH" == "1" ]]; then
+    shield_workspace_entry_pane
+  fi
+
   fit_workspace_to_terminal
 
   if [[ "$ATTACH" != "1" ]]; then
