@@ -92,8 +92,16 @@ jobs:
           test "$(tmux list-panes -t ci-workspace:logs -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "logs-1 logs-2 "
           test "$(tmux list-panes -t ci-workspace:btop -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "monitor "
           test "$(tmux list-panes -t ci-workspace:manual -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "manual "
-          tmux show-hooks -t ci-workspace client-resized | grep -q -- '--fit-only'
-          tmux show-hooks -t ci-workspace after-select-window | grep -q -- '--fit-only'
+          tmux show-hooks -t ci-workspace client-resized | grep -q -- '--schedule-fit'
+          tmux show-hooks -t ci-workspace client-attached | grep -q -- '--schedule-fit'
+          tmux show-hooks -t ci-workspace client-session-changed | grep -q -- '--schedule-fit'
+          ! tmux show-hooks -t ci-workspace after-select-window 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'
+          ! tmux show-hooks -t ci-workspace session-window-changed 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'
+
+          tmux resize-pane -t ci-workspace:dev.2 -y 20
+          WORKSPACE_COLS=140 WORKSPACE_LINES=40 ./scripts/workspace_layout.sh --session ci-workspace --fit-only
+          test "$(tmux display-message -p -t ci-workspace:dev '#{window_width}x#{window_height}')" = "140x40"
+          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_height}' | awk '$1 == "shell" { print ($2 >= 18) ? "ok" : "bad" }')" = "ok"
 
           ./scripts/showcase_layout.sh --session ci-showcase --reset --no-attach
           test "$(tmux list-windows -t ci-showcase | wc -l | tr -d ' ')" = "4"
