@@ -21,7 +21,7 @@
 
 - 底部 **tmux workspace bar** 使用 `1:dev`、`2:agent`、`3:ssh`、`4:logs`、`5:btop`、`6:manual` 在不同工作上下文之间切换。
 - **`1:dev`**：主开发工作区，包含 `Code` / `Command` / `Git` / `Files` 四个 pane。
-- **`2:agent`**：AI 辅助工作区，默认左右二分为 `agent-1` / `agent-2`，可按需分别运行 Codex CLI。
+- **`2:agent`**：AI 辅助工作区，默认左右二分为 `agent-1` / `agent-2`，可按需运行 Codex、其他 AI CLI 或普通终端任务。
 - **`3:ssh`**：远程连接工作区，默认四宫格 `ssh-1` 到 `ssh-4`，方便同时连接多个设备。
 - **`4:logs`**：测试、日志和 watch 命令工作区，默认左右二分为 `logs-1` / `logs-2`。
 - **`5:btop`**：单独的系统监控页面，默认运行 `btop`。
