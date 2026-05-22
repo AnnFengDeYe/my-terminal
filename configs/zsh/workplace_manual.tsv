@@ -1,6 +1,6 @@
 # name	type	group	command	description	usage	source
 coding	alias	directory	cd $HOME/projects	Change into the common projects directory.	coding	configs/zsh/zshrc:93
-workplace	function	workspace	$MY_TERMINAL_HOME/scripts/workspace_layout.sh "$@"	Start or enter the daily tmux workspace for the current project.	workplace [--reset|--dir PATH|--session NAME]	configs/zsh/zshrc:112
+workplace	function	workspace	$MY_TERMINAL_HOME/scripts/workspace_layout.sh "$@"	Start, enter, or non-destructively repair the daily tmux workspace.	workplace [--repair|--reset|--dir PATH|--session NAME]	configs/zsh/zshrc:112
 ls	alias	eza	eza --icons=always --group-directories-first --hyperlink	Show a compact directory listing with directories first and clickable paths.	ls [PATH]	configs/zsh/zshrc:123
 ll	alias	eza	eza -lah --icons=always --group-directories-first --git --octal-permissions	Show a detailed listing with hidden files, Git status, and octal permissions.	ll [PATH]	configs/zsh/zshrc:124
 la	alias	eza	eza -la --icons=always --group-directories-first	Show hidden files with directories first.	la [PATH]	configs/zsh/zshrc:125

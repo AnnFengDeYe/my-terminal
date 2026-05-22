@@ -7,6 +7,8 @@ SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 WORK_DIR="${WORKSPACE_DIR:-$(pwd -P)}"
 SESSION="${WORKSPACE_SESSION:-my-terminal-workspace}"
 RESET=0
+REPAIR=0
+SESSION_CREATED=0
 ATTACH=1
 PANE_MODE=""
 FIT_ONLY=0
@@ -17,7 +19,7 @@ SCHEDULE_FIT=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/workspace_layout.sh [--dir PATH] [--session NAME] [--reset] [--no-attach]
+Usage: scripts/workspace_layout.sh [--dir PATH] [--session NAME] [--repair] [--reset] [--no-attach]
 
 Create a daily tmux workspace:
   - window 1: dev
@@ -41,6 +43,7 @@ Create a daily tmux workspace:
 Options:
   --dir PATH      Use PATH as the workspace directory. Defaults to current directory.
   --session NAME  Use a custom tmux session name.
+  --repair        Repair managed windows, pane roles, hooks, and options without killing tasks.
   --reset         Recreate the session if it already exists.
   --no-attach     Create the session and print its name without attaching.
   --fit-only      Resize an existing session without creating or attaching.
@@ -48,11 +51,12 @@ Options:
                   With --fit-only, resize only one tmux window. Used by hooks.
   --schedule-fit  Schedule a debounced fit pass. Used by hooks.
   --list-windows  Print the workspace window registry and exit.
+  --repair-layout Reset managed pane layouts during fit/repair.
   --help, -h      Show this help.
 
 Environment:
   WORKSPACE_COLS / WORKSPACE_LINES  Override the detected tmux size.
-  WORKSPACE_REFIT_LAYOUT=1          Reset pane layouts during --fit-only.
+  WORKSPACE_REFIT_LAYOUT=1          Reset managed pane layouts during fit/repair.
 EOF
 }
 
@@ -85,6 +89,10 @@ parse_args() {
         RESET=1
         shift
         ;;
+      --repair)
+        REPAIR=1
+        shift
+        ;;
       --no-attach)
         ATTACH=0
         shift
@@ -97,6 +105,10 @@ parse_args() {
       --fit-only)
         FIT_ONLY=1
         ATTACH=0
+        shift
+        ;;
+      --repair-layout)
+        export WORKSPACE_REFIT_LAYOUT=1
         shift
         ;;
       --schedule-fit)
@@ -434,19 +446,72 @@ detect_tmux_size() {
   printf '%s %s\n' "$cols" "$lines"
 }
 
-window_id_by_name() {
+tmux_workspace_windows() {
+  tmux list-windows -t "$SESSION" -F '#{window_id}|#{@workspace_managed}|#{@workspace_window_name}|#{window_name}' 2>/dev/null
+}
+
+set_workspace_window_metadata() {
+  local window_id="$1"
+  local window_name="$2"
+
+  tmux set-window-option -t "$window_id" @workspace_managed 1 >/dev/null 2>&1 || true
+  tmux set-window-option -t "$window_id" @workspace_window_name "$window_name" >/dev/null 2>&1 || true
+}
+
+window_id_by_workspace_metadata() {
+  local managed
+  local managed_name
   local target_name="$1"
   local window_id
   local window_name
 
-  while read -r window_id window_name; do
+  while IFS='|' read -r window_id managed managed_name window_name; do
+    if [[ "$managed" == "1" && "$managed_name" == "$target_name" ]]; then
+      printf '%s\n' "$window_id"
+      return 0
+    fi
+  done < <(tmux_workspace_windows)
+
+  return 1
+}
+
+window_id_by_exact_window_name() {
+  local managed
+  local managed_name
+  local target_name="$1"
+  local window_id
+  local window_name
+
+  while IFS='|' read -r window_id managed managed_name window_name; do
     if [[ "$window_name" == "$target_name" ]]; then
       printf '%s\n' "$window_id"
       return 0
     fi
-  done < <(tmux list-windows -t "$SESSION" -F '#{window_id} #{window_name}' 2>/dev/null)
+  done < <(tmux_workspace_windows)
 
   return 1
+}
+
+window_id_by_name() {
+  local target_name="$1"
+
+  window_id_by_workspace_metadata "$target_name" || window_id_by_exact_window_name "$target_name"
+}
+
+workspace_window_name_for_id() {
+  local current_name
+  local managed_name
+  local window_id="$1"
+
+  managed_name="$(tmux display-message -p -t "$window_id" '#{@workspace_window_name}' 2>/dev/null || true)"
+  if [[ -n "$managed_name" ]] && workspace_window_is_configured "$managed_name"; then
+    printf '%s\n' "$managed_name"
+    return 0
+  fi
+
+  current_name="$(tmux display-message -p -t "$window_id" '#{window_name}' 2>/dev/null || true)"
+  [[ -n "$current_name" ]] || return 1
+  printf '%s\n' "$current_name"
 }
 
 pane_id_by_title() {
@@ -685,7 +750,7 @@ fit_workspace_target_to_terminal() {
   local window_name
 
   [[ -n "$window_id" ]] || return 0
-  window_name="$(tmux display-message -p -t "$window_id" '#{window_name}' 2>/dev/null || true)"
+  window_name="$(workspace_window_name_for_id "$window_id" || true)"
   [[ -n "$window_name" ]] || return 0
   workspace_window_is_configured "$window_name" || return 0
 
@@ -788,7 +853,11 @@ attach_or_switch() {
 
   if [[ "$ATTACH" != "1" ]]; then
     select_workspace_entry_pane
-    printf 'Created tmux session: %s\n' "$SESSION"
+    if [[ "$SESSION_CREATED" == "1" ]]; then
+      printf 'Created tmux session: %s\n' "$SESSION"
+    else
+      printf 'Workspace session ready: %s\n' "$SESSION"
+    fi
     printf 'Workspace: %s\n' "$WORK_DIR"
     printf 'Attach with: tmux attach -t %s\n' "$SESSION"
     return 0
@@ -944,6 +1013,7 @@ create_workspace_window() {
   declare -F "$configure_fn" >/dev/null || die "missing configure function for workspace window: $window_name"
 
   window_id="$(tmux new-window -d -P -F '#{window_id}' -t "$SESSION" -n "$window_name" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane $(shell_quote "$initial_pane_mode")")"
+  set_workspace_window_metadata "$window_id" "$window_name"
   "$configure_fn" "$window_id" "$script_cmd"
 }
 
@@ -972,6 +1042,271 @@ ensure_workspace_windows() {
   if [[ "$created" == "1" ]]; then
     order_workspace_windows
   fi
+}
+
+workspace_pane_records() {
+  case "$1" in
+    dev)
+      printf '%s\n' \
+        "editor|nvim|editor" \
+        "git|lazygit|git" \
+        "files|yazi|files" \
+        "shell|shell|shell"
+      ;;
+    agent)
+      printf '%s\n' \
+        "agent-1|agent-1|shell" \
+        "agent-2|agent-2|shell"
+      ;;
+    ssh)
+      printf '%s\n' \
+        "ssh-1|ssh-1|shell" \
+        "ssh-2|ssh-2|shell" \
+        "ssh-3|ssh-3|shell" \
+        "ssh-4|ssh-4|shell"
+      ;;
+    logs)
+      printf '%s\n' \
+        "logs-1|logs-1|shell" \
+        "logs-2|logs-2|shell"
+      ;;
+    btop)
+      printf '%s\n' "monitor|btop|monitor"
+      ;;
+    manual)
+      printf '%s\n' "manual|manual|manual"
+      ;;
+  esac
+}
+
+repair_workspace_pane_roles() {
+  local expected_count=0
+  local found_count=0
+  local pane_mode
+  local pane_id
+  local role
+  local title
+  local window_id="$1"
+  local window_name="$2"
+
+  while IFS='|' read -r role title pane_mode; do
+    [[ -n "$role" && -n "$title" && -n "$pane_mode" ]] || continue
+    expected_count=$((expected_count + 1))
+    pane_id="$(pane_id_by_role_or_title "$window_id" "$role" "$title" || true)"
+    [[ -n "$pane_id" ]] || continue
+    set_workspace_pane_role "$pane_id" "$role" "$title"
+    found_count=$((found_count + 1))
+  done < <(workspace_pane_records "$window_name")
+
+  if [[ "$expected_count" != "0" && "$found_count" != "$expected_count" ]]; then
+    repair_workspace_pane_roles_by_index "$window_id" "$window_name"
+  fi
+}
+
+repair_workspace_pane_roles_by_index() {
+  local expected_roles=()
+  local expected_titles=()
+  local index
+  local pane_mode
+  local pane_id
+  local pane_ids=()
+  local role
+  local title
+  local window_id="$1"
+  local window_name="$2"
+
+  while IFS='|' read -r role title pane_mode; do
+    [[ -n "$role" && -n "$title" && -n "$pane_mode" ]] || continue
+    expected_roles+=("$role")
+    expected_titles+=("$title")
+  done < <(workspace_pane_records "$window_name")
+
+  [[ "${#expected_roles[@]}" != "0" ]] || return 0
+
+  while read -r pane_id; do
+    [[ -n "$pane_id" ]] || continue
+    pane_ids+=("$pane_id")
+  done < <(tmux list-panes -t "$window_id" -F '#{pane_id}' 2>/dev/null)
+
+  [[ "${#pane_ids[@]}" == "${#expected_roles[@]}" ]] || return 0
+
+  for ((index = 0; index < ${#expected_roles[@]}; index++)); do
+    set_workspace_pane_role "${pane_ids[$index]}" "${expected_roles[$index]}" "${expected_titles[$index]}"
+  done
+}
+
+first_pane_id_in_window() {
+  local window_id="$1"
+
+  tmux list-panes -t "$window_id" -F '#{pane_id}' 2>/dev/null | sed -n '1p'
+}
+
+workspace_pane_split_direction() {
+  local anchor_role="$3"
+  local role="$2"
+  local window_name="$1"
+
+  case "$window_name:$role:$anchor_role" in
+    dev:shell:*) printf 'v\n' ;;
+    dev:files:git|dev:git:files) printf 'v\n' ;;
+    dev:editor:shell) printf 'v\n' ;;
+    *) printf 'h\n' ;;
+  esac
+}
+
+create_missing_workspace_pane() {
+  local anchor_pane="$4"
+  local before="$5"
+  local direction="$6"
+  local pane_mode="$3"
+  local role="$1"
+  local script_cmd="$7"
+  local split_args=()
+  local title="$2"
+  local new_pane
+
+  if [[ "$direction" == "v" ]]; then
+    split_args+=("-v")
+  else
+    split_args+=("-h")
+  fi
+
+  [[ "$before" == "1" ]] && split_args+=("-b")
+
+  new_pane="$(
+    tmux split-window "${split_args[@]}" -P -F '#{pane_id}' -t "$anchor_pane" -c "$WORK_DIR" \
+      "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane $(shell_quote "$pane_mode")"
+  )"
+  [[ -n "$new_pane" ]] || return 1
+  set_workspace_pane_role "$new_pane" "$role" "$title"
+}
+
+ensure_missing_workspace_panes() {
+  local anchor_pane
+  local anchor_role
+  local before
+  local created=1
+  local direction
+  local index
+  local look
+  local modes=()
+  local pane_id
+  local pane_mode
+  local roles=()
+  local script_cmd="$3"
+  local titles=()
+  local window_id="$1"
+  local window_name="$2"
+
+  while IFS='|' read -r role title pane_mode; do
+    [[ -n "$role" && -n "$title" && -n "$pane_mode" ]] || continue
+    roles+=("$role")
+    titles+=("$title")
+    modes+=("$pane_mode")
+  done < <(workspace_pane_records "$window_name")
+
+  [[ "${#roles[@]}" != "0" ]] || return 1
+
+  for ((index = 0; index < ${#roles[@]}; index++)); do
+    pane_id="$(pane_id_by_role_or_title "$window_id" "${roles[$index]}" "${titles[$index]}" || true)"
+    [[ -n "$pane_id" ]] && continue
+
+    anchor_pane=""
+    anchor_role=""
+    before=0
+
+    for ((look = index + 1; look < ${#roles[@]}; look++)); do
+      anchor_pane="$(pane_id_by_role_or_title "$window_id" "${roles[$look]}" "${titles[$look]}" || true)"
+      if [[ -n "$anchor_pane" ]]; then
+        anchor_role="${roles[$look]}"
+        before=1
+        break
+      fi
+    done
+
+    if [[ -z "$anchor_pane" ]]; then
+      for ((look = index - 1; look >= 0; look--)); do
+        anchor_pane="$(pane_id_by_role_or_title "$window_id" "${roles[$look]}" "${titles[$look]}" || true)"
+        if [[ -n "$anchor_pane" ]]; then
+          anchor_role="${roles[$look]}"
+          before=0
+          break
+        fi
+      done
+    fi
+
+    if [[ -z "$anchor_pane" ]]; then
+      anchor_pane="$(first_pane_id_in_window "$window_id" || true)"
+      before=0
+    fi
+
+    [[ -n "$anchor_pane" ]] || continue
+    direction="$(workspace_pane_split_direction "$window_name" "${roles[$index]}" "$anchor_role")"
+    create_missing_workspace_pane "${roles[$index]}" "${titles[$index]}" "${modes[$index]}" "$anchor_pane" "$before" "$direction" "$script_cmd" || continue
+    created=0
+  done
+
+  return "$created"
+}
+
+repair_workspace_window() {
+  local current_name
+  local fit_fn
+  local full_repair="$3"
+  local pane_created=1
+  local script_cmd="$4"
+  local selected_pane
+  local window_id="$1"
+  local window_name="$2"
+
+  [[ -n "$window_id" ]] || return 0
+  set_workspace_window_metadata "$window_id" "$window_name"
+  current_name="$(tmux display-message -p -t "$window_id" '#{window_name}' 2>/dev/null || true)"
+  if [[ -n "$current_name" && "$current_name" != "$window_name" ]]; then
+    tmux rename-window -t "$window_id" "$window_name" >/dev/null 2>&1 || true
+  fi
+
+  set_window_pane_options "$window_id"
+  [[ "$full_repair" == "1" ]] || return 0
+  selected_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}' 2>/dev/null || true)"
+  repair_workspace_pane_roles "$window_id" "$window_name"
+  ensure_missing_workspace_panes "$window_id" "$window_name" "$script_cmd" && pane_created=0
+  repair_workspace_pane_roles "$window_id" "$window_name"
+  if [[ "$pane_created" == "0" ]] && ! window_is_zoomed "$window_id"; then
+    fit_fn="$(workspace_window_fit_fn "$window_name" || printf 'fit_noop_layout')"
+    fit_window_layout "$window_id" "$fit_fn"
+  fi
+  if [[ -n "$selected_pane" ]]; then
+    tmux select-pane -t "$selected_pane" >/dev/null 2>&1 || true
+  fi
+}
+
+repair_workspace_session() {
+  local entry_window_id
+  local entry_window_name
+  local full_repair="$2"
+  local script_cmd="$1"
+  local window_id
+  local window_name
+
+  ensure_workspace_windows "$script_cmd"
+
+  while read -r window_name; do
+    window_id="$(window_id_by_name "$window_name" || true)"
+    [[ -n "$window_id" ]] || continue
+    repair_workspace_window "$window_id" "$window_name" "$full_repair" "$script_cmd"
+  done < <(workspace_window_names)
+
+  entry_window_name="$(workspace_entry_window_name || true)"
+  entry_window_id="$(window_id_by_name "$entry_window_name" || true)"
+  if [[ -n "$entry_window_id" ]]; then
+    set_tmux_options "$entry_window_id"
+  else
+    bind_workspace_keys
+    set_workspace_hooks
+  fi
+
+  order_workspace_windows
 }
 
 order_workspace_windows() {
@@ -1014,6 +1349,7 @@ create_primary_workspace_window() {
   tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n "$window_name" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane $(shell_quote "$initial_pane_mode")"
   window_id="$(tmux display-message -p -t "$SESSION" '#{window_id}')"
   tmux rename-window -t "$window_id" "$window_name"
+  set_workspace_window_metadata "$window_id" "$window_name"
   set_tmux_options "$window_id"
   "$configure_fn" "$window_id" "$script_cmd"
   printf '%s\n' "$window_id"
@@ -1033,13 +1369,14 @@ create_session() {
     if [[ "$RESET" == "1" ]]; then
       tmux kill-session -t "$SESSION"
     else
-      ensure_workspace_windows "$script_cmd"
+      repair_workspace_session "$script_cmd" "$REPAIR"
       attach_or_switch
       return 0
     fi
   fi
 
   window_id="$(create_primary_workspace_window "$script_cmd" "$term_cols" "$term_lines")"
+  SESSION_CREATED=1
   create_remaining_workspace_windows "$script_cmd"
   order_workspace_windows
   select_workspace_entry_pane

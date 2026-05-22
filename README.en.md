@@ -32,7 +32,7 @@ The `manual` data lives in `configs/zsh/workplace_manual.tsv`; edit that table w
 Start a workspace for the current directory:
 
 ```sh
-./scripts/workspace_layout.sh --reset
+./scripts/workspace_layout.sh
 ```
 
 If the zsh config from this repository is loaded, use the shortcut command:
@@ -41,14 +41,16 @@ If the zsh config from this repository is loaded, use the shortcut command:
 workplace
 ```
 
-`workplace` starts or enters the daily workspace for the current directory. Use `workplace --reset` when you want to recreate the session.
+`workplace` starts or enters the daily workspace for the current directory. When entering an existing workspace, it performs a light, non-destructive repair: it restores managed window names, ordering, tmux hooks, and options without deleting unknown windows or stopping running tasks.
 
-On startup, it detects the current terminal size and fits the tmux workspace to the full terminal window. When entering an existing workspace, it only syncs window size and preserves current pane ratios and zoom state, so enlarged panes are not reset to the default layout. Set `WORKSPACE_COLS` / `WORKSPACE_LINES` when you need a fixed size; use `workplace --reset` to recreate the default layout.
+If a managed pane was closed, or pane titles / roles were changed, run `workplace --repair` to recreate missing managed panes and repair pane metadata; it does not delete existing panes or unknown windows. Use `workplace --repair-layout` when you also want to refit managed pane layouts. `workplace --reset` deletes and recreates the whole tmux session, which stops any tasks running inside it.
+
+On startup, it detects the current terminal size and fits the tmux workspace to the full terminal window. When entering an existing workspace, it only syncs window size and preserves current pane ratios and zoom state, so enlarged panes are not reset to the default layout. Set `WORKSPACE_COLS` / `WORKSPACE_LINES` when you need a fixed size; use `workplace --reset` only when you want to fully recreate the default layout.
 
 Start a workspace for another project:
 
 ```sh
-./scripts/workspace_layout.sh --dir ~/your-project --reset
+./scripts/workspace_layout.sh --dir ~/your-project
 ```
 
 ## ✨ Key Features
@@ -163,6 +165,7 @@ During install, configs under `configs/` are symlinked into the target HOME. Exi
 | Link configs only | `./install.sh --link-only --backup --yes` |
 | Check configuration | `./scripts/doctor.sh` |
 | Quickly enter daily workspace | `workplace` |
+| Non-destructively repair daily workspace | `workplace --repair` or `./scripts/workspace_layout.sh --repair` |
 | Recreate daily workspace | `workplace --reset` or `./scripts/workspace_layout.sh --reset` |
 | Open README showcase layout | `./scripts/showcase_layout.sh --reset` |
 | Preview restore | `./scripts/restore_backups.sh --dry-run` |

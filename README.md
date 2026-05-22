@@ -32,7 +32,7 @@
 启动当前目录的工作区：
 
 ```sh
-./scripts/workspace_layout.sh --reset
+./scripts/workspace_layout.sh
 ```
 
 如果已通过本仓库加载 zsh 配置，可以直接使用快速命令：
@@ -41,14 +41,16 @@
 workplace
 ```
 
-`workplace` 会启动或进入当前目录的日常 workspace；需要重建会话时可运行 `workplace --reset`。
+`workplace` 会启动或进入当前目录的日常 workspace。进入已有 workspace 时会做轻量、非破坏性 repair：恢复被管理窗口的名称、顺序、tmux hooks 和 options，不会删除未知窗口，也不会终止正在运行的任务。
 
-启动时会自动检测当前终端尺寸并让 tmux workspace 铺满整个终端窗口；进入已有 workspace 时只同步窗口尺寸，保留当前 pane 比例和 zoom 状态，避免局部放大被恢复成默认布局。需要固定尺寸时可设置 `WORKSPACE_COLS` / `WORKSPACE_LINES`；需要重建默认布局时使用 `workplace --reset`。
+如果某个被管理 pane 被关闭，或 pane title / role 被改乱，可运行 `workplace --repair` 补回缺失的 managed pane 并修复 pane metadata；它不会删除已有 pane 或未知窗口。需要连 managed pane 布局一起重新整理时使用 `workplace --repair-layout`。`workplace --reset` 会删除并重建整个 tmux session，会终止里面正在运行的任务。
+
+启动时会自动检测当前终端尺寸并让 tmux workspace 铺满整个终端窗口；进入已有 workspace 时只同步窗口尺寸，保留当前 pane 比例和 zoom 状态，避免局部放大被恢复成默认布局。需要固定尺寸时可设置 `WORKSPACE_COLS` / `WORKSPACE_LINES`；需要彻底重建默认布局时使用 `workplace --reset`。
 
 为其他项目启动工作区：
 
 ```sh
-./scripts/workspace_layout.sh --dir ~/your-project --reset
+./scripts/workspace_layout.sh --dir ~/your-project
 ```
 
 ## ✨ 核心特性
@@ -163,6 +165,7 @@ Linux 可选 Homebrew：
 | 只链接配置 | `./install.sh --link-only --backup --yes` |
 | 检查配置 | `./scripts/doctor.sh` |
 | 快速进入日常 workspace | `workplace` |
+| 非破坏性修复日常 workspace | `workplace --repair` 或 `./scripts/workspace_layout.sh --repair` |
 | 重建日常 workspace | `workplace --reset` 或 `./scripts/workspace_layout.sh --reset` |
 | 打开 README 展示布局 | `./scripts/showcase_layout.sh --reset` |
 | 预览恢复 | `./scripts/restore_backups.sh --dry-run` |
