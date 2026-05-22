@@ -152,7 +152,14 @@ verify_sha256() {
 }
 
 official_binary_asset() {
-  case "$(uname -m 2>/dev/null || true)" in
+  local machine="$1"
+
+  case "$machine" in
+    x86_64|amd64)
+      printf '%s %s\n' \
+        "yazi-x86_64-unknown-linux-gnu.zip" \
+        "1c9096f0a83b8102c194385f644cdeff93cc8269426163c9d033041ebd537bd2"
+      ;;
     aarch64|arm64)
       printf '%s %s\n' \
         "yazi-aarch64-unknown-linux-gnu.zip" \
@@ -186,7 +193,7 @@ install_with_official_binary() {
 
   [[ "$OS_NAME" != "macos" ]] || return 1
 
-  asset_info="$(official_binary_asset || true)"
+  asset_info="$(official_binary_asset "$(uname -m 2>/dev/null || true)" || true)"
   [[ -n "$asset_info" ]] || return 1
   asset="${asset_info%% *}"
   checksum="${asset_info##* }"
@@ -284,4 +291,6 @@ main() {
   fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

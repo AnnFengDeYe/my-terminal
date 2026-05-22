@@ -144,6 +144,14 @@ grep -q "^Exec=$TMP_HOME/.local/bin/ghostty$" "$TMP_HOME/Desktop/Ghostty.desktop
 [[ -x "$TMP_HOME/Desktop/Ghostty.desktop" ]] || fail "Ghostty desktop launcher should be executable"
 printf 'ok: Linux desktop entries created inside temporary HOME\n\n'
 
+printf 'Test 5d: Yazi official binary fallback supports Linux x86_64\n'
+# shellcheck source=scripts/install_yazi.sh
+. "$REPO_ROOT/scripts/install_yazi.sh"
+expected_yazi_x86_asset="yazi-x86_64-unknown-linux-gnu.zip 1c9096f0a83b8102c194385f644cdeff93cc8269426163c9d033041ebd537bd2"
+[[ "$(official_binary_asset x86_64)" == "$expected_yazi_x86_asset" ]] || fail "expected Yazi x86_64 official binary asset"
+[[ "$(official_binary_asset amd64)" == "$expected_yazi_x86_asset" ]] || fail "expected Yazi amd64 official binary asset"
+printf 'ok: Yazi x86_64 official binary fallback is mapped\n\n'
+
 printf 'Test 6: terminal font apply updates LXTerminal config in temporary HOME\n'
 mkdir -p "$TMP_HOME/.config/lxterminal"
 printf '[general]\nfontname=Monospace 10\n' > "$TMP_HOME/.config/lxterminal/lxterminal.conf"
