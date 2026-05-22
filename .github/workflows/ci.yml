@@ -98,9 +98,24 @@ jobs:
           ! tmux show-hooks -t ci-workspace after-select-window 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'
           ! tmux show-hooks -t ci-workspace session-window-changed 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'
 
-          tmux resize-pane -t ci-workspace:dev.2 -y 20
+          dev_shell_pane="$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_id}' | awk '$1 == "shell" { print $2; exit }')"
+          test -n "$dev_shell_pane"
+
+          tmux resize-pane -t "$dev_shell_pane" -y 20
           WORKSPACE_COLS=140 WORKSPACE_LINES=40 ./scripts/workspace_layout.sh --session ci-workspace --fit-only
           test "$(tmux display-message -p -t ci-workspace:dev '#{window_width}x#{window_height}')" = "140x40"
+          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_height}' | awk '$1 == "shell" { print ($2 >= 18) ? "ok" : "bad" }')" = "ok"
+
+          WORKSPACE_REFIT_LAYOUT=1 WORKSPACE_COLS=140 WORKSPACE_LINES=40 ./scripts/workspace_layout.sh --session ci-workspace --fit-only
+          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_height}' | awk '$1 == "shell" { print ($2 <= 14) ? "ok" : "bad" }')" = "ok"
+          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_width} #{pane_height}' | awk '$1 == "git" { print ($2 <= 52 && $3 >= 18) ? "ok" : "bad" }')" = "ok"
+
+          tmux resize-pane -t "$dev_shell_pane" -y 20
+          tmux resize-pane -Z -t "$dev_shell_pane"
+          test "$(tmux display-message -p -t ci-workspace:dev '#{window_zoomed_flag}')" = "1"
+          WORKSPACE_REFIT_LAYOUT=1 WORKSPACE_COLS=140 WORKSPACE_LINES=40 ./scripts/workspace_layout.sh --session ci-workspace --fit-only
+          test "$(tmux display-message -p -t ci-workspace:dev '#{window_zoomed_flag}')" = "1"
+          tmux resize-pane -Z -t "$dev_shell_pane"
           test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_height}' | awk '$1 == "shell" { print ($2 >= 18) ? "ok" : "bad" }')" = "ok"
 
           ./scripts/showcase_layout.sh --session ci-showcase --reset --no-attach
