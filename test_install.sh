@@ -85,6 +85,30 @@ FAKE_PM
   chmod +x "$fake_bin/sudo" "$fake_bin/$command_name"
 }
 
+make_fake_doctor_tools() {
+  local target_home="$1"
+  local fake_bin="$target_home/.local/bin"
+  local fake_brew_prefix="$target_home/fake-brew-prefix"
+  local cmd
+
+  mkdir -p "$fake_bin" "$fake_brew_prefix/share/zsh-syntax-highlighting"
+  for cmd in zsh tmux starship btop fzf zoxide eza bat fd rg lazygit nvim yazi ya ghostty; do
+    printf '#!/usr/bin/env sh\nexit 0\n' > "$fake_bin/$cmd"
+    chmod +x "$fake_bin/$cmd"
+  done
+
+  cat > "$fake_bin/brew" <<FAKE_BREW
+#!/usr/bin/env sh
+if [ "\${1:-}" = "--prefix" ]; then
+  printf '%s\n' "$fake_brew_prefix"
+  exit 0
+fi
+exit 0
+FAKE_BREW
+  chmod +x "$fake_bin/brew"
+  printf '# fake zsh-syntax-highlighting\n' > "$fake_brew_prefix/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+}
+
 printf 'Real HOME:      %s\n' "$REAL_HOME"
 printf 'Temporary HOME: %s\n' "$TMP_HOME"
 printf 'Repository:     %s\n\n' "$REPO_ROOT"
@@ -236,6 +260,29 @@ grep -q '^error: required dnf package(s) could not be installed' "$fake_err" || 
 grep -q '^  - eza$' "$fake_err" || fail "expected failed dnf package name"
 grep -q 'install -y bat' "$fake_log" || fail "expected dnf install loop to continue after required failure"
 printf 'ok: dnf required package failures are reported and return non-zero\n\n'
+
+printf 'Test 5h: doctor default mode treats unmanaged configs as warnings\n'
+doctor_home="$TMP_HOME/doctor-default"
+doctor_out="$TMP_HOME/doctor-default.out"
+doctor_err="$TMP_HOME/doctor-default.err"
+make_fake_doctor_tools "$doctor_home"
+HOME="$doctor_home" TEST_HOME="$doctor_home" "$REPO_ROOT/scripts/doctor.sh" >"$doctor_out" 2>"$doctor_err" || fail "doctor default mode should not fail for unmanaged configs"
+grep -q 'Config link mode: default' "$doctor_out" || fail "expected doctor default link mode"
+grep -q 'warning: .*\.zshrc is not linked yet' "$doctor_out" || fail "expected unmanaged .zshrc warning"
+grep -q 'Doctor summary: 0 failure(s)' "$doctor_out" || fail "doctor default mode should have no failures"
+printf 'ok: doctor default mode reports unmanaged configs as warnings\n\n'
+
+printf 'Test 5i: doctor strict mode fails on unmanaged configs\n'
+doctor_home="$TMP_HOME/doctor-strict"
+doctor_out="$TMP_HOME/doctor-strict.out"
+doctor_err="$TMP_HOME/doctor-strict.err"
+make_fake_doctor_tools "$doctor_home"
+if HOME="$doctor_home" TEST_HOME="$doctor_home" "$REPO_ROOT/scripts/doctor.sh" --strict >"$doctor_out" 2>"$doctor_err"; then
+  fail "doctor strict mode should fail for unmanaged configs"
+fi
+grep -q 'Config link mode: strict' "$doctor_out" || fail "expected doctor strict link mode"
+grep -q 'fail: .*\.zshrc is not linked yet' "$doctor_out" || fail "expected strict .zshrc failure"
+printf 'ok: doctor strict mode reports unmanaged configs as failures\n\n'
 
 printf 'Test 6: terminal font apply updates LXTerminal config in temporary HOME\n'
 mkdir -p "$TMP_HOME/.config/lxterminal"

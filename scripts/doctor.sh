@@ -16,7 +16,26 @@ PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/snap/bin:/home/linuxbrew/
 export PATH
 
 FAILURES=0
+STRICT_LINKS=0
 WARNINGS=0
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/doctor.sh [--strict]
+
+Checks installed tools and repository-managed config links.
+By default, config targets that are not linked to this repository are warnings.
+
+Options:
+  --strict    Treat unmanaged or mismatched config links as failures
+  --help      Show help
+EOF
+}
+
+die() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
+}
 
 ok() {
   printf 'ok: %s\n' "$*"
@@ -30,6 +49,32 @@ warn() {
 fail() {
   FAILURES=$((FAILURES + 1))
   printf 'fail: %s\n' "$*"
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --strict)
+        STRICT_LINKS=1
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown option: $1"
+        ;;
+    esac
+  done
+}
+
+link_issue() {
+  if [[ "$STRICT_LINKS" == "1" ]]; then
+    fail "$*"
+  else
+    warn "$*"
+  fi
 }
 
 check_cmd() {
@@ -85,7 +130,11 @@ check_link() {
   fi
 
   if [[ ! -L "$target" ]]; then
-    fail "$target is not a symlink to $rel_source"
+    if [[ -e "$target" ]]; then
+      link_issue "$target is not managed by this repository; expected symlink to $rel_source"
+    else
+      link_issue "$target is not linked yet; expected symlink to $rel_source"
+    fi
     return 0
   fi
 
@@ -95,13 +144,15 @@ check_link() {
   if [[ "$link_canon" == "$source_canon" ]]; then
     ok "$target points to $rel_source"
   else
-    fail "$target points somewhere else"
+    link_issue "$target points somewhere else; expected $rel_source"
   fi
 }
 
 main() {
   local os_name
   local ghostty_source
+
+  parse_args "$@"
 
   os_name="$("$SCRIPT_DIR/detect_os.sh")"
   ghostty_source="$(select_ghostty_source "$REPO_ROOT" "$os_name")"
@@ -110,6 +161,11 @@ main() {
   printf 'Current shell: %s\n' "${SHELL:-unknown}"
   printf 'Repository: %s\n' "$REPO_ROOT"
   printf 'Target HOME: %s\n\n' "$TARGET_HOME"
+  if [[ "$STRICT_LINKS" == "1" ]]; then
+    printf 'Config link mode: strict (repository symlinks required)\n\n'
+  else
+    printf 'Config link mode: default (unmanaged config targets are warnings)\n\n'
+  fi
 
   check_cmd zsh
   check_zsh_syntax_highlighting

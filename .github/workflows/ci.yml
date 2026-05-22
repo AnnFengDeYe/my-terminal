@@ -15,7 +15,7 @@ jobs:
       - name: Install test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y shellcheck tmux
+          sudo apt-get install -y file shellcheck tmux
 
       - name: Bash syntax check
         run: |
@@ -33,6 +33,7 @@ jobs:
         run: |
           ./setup.sh --help
           ./install.sh --help
+          ./scripts/doctor.sh --help
           ./scripts/preview_install.sh --help
           ./scripts/showcase_layout.sh --help
           ./scripts/workspace_layout.sh --help
@@ -47,7 +48,17 @@ jobs:
           ./scripts/workplace_manual.sh --show workplace | grep -q 'workspace_layout.sh'
 
       - name: Check README assets
-        run: test -f assets/workspace-layout.jpg
+        run: |
+          set -euo pipefail
+
+          test -s assets/workspace-layout.jpg
+          file assets/workspace-layout.jpg | grep -q 'JPEG image data'
+
+          image_refs="$(grep -hEo '!\[[^]]*\]\(assets/[^)]+\)' README.md README.en.md | sed -E 's/^!\[[^]]*\]\((assets\/[^)]+)\)$/\1/')"
+          test -n "$image_refs"
+          printf '%s\n' "$image_refs" | while IFS= read -r asset; do
+            test -s "$asset"
+          done
 
       - name: Tmux layout smoke tests
         env:
