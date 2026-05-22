@@ -42,6 +42,49 @@ assert_missing() {
   [[ ! -e "$path" && ! -L "$path" ]] || fail "expected path to be absent: $path"
 }
 
+make_fake_package_manager() {
+  local fake_bin="$1"
+  local command_name="$2"
+
+  mkdir -p "$fake_bin"
+  cat > "$fake_bin/sudo" <<'FAKE_SUDO'
+#!/usr/bin/env bash
+exec "$@"
+FAKE_SUDO
+
+  cat > "$fake_bin/$command_name" <<'FAKE_PM'
+#!/usr/bin/env bash
+set -euo pipefail
+
+log="${FAKE_PM_LOG:?FAKE_PM_LOG is required}"
+printf '%s' "$0" >> "$log"
+for arg in "$@"; do
+  printf ' %s' "$arg" >> "$log"
+done
+printf '\n' >> "$log"
+
+case "${1:-}" in
+  update)
+    exit 0
+    ;;
+  install)
+    pkg=""
+    for arg in "$@"; do
+      pkg="$arg"
+    done
+    if [[ "$pkg" == "${FAKE_REQUIRED_FAIL:-}" || "$pkg" == "${FAKE_OPTIONAL_FAIL:-}" ]]; then
+      printf 'fake package failure: %s\n' "$pkg" >&2
+      exit 42
+    fi
+    ;;
+esac
+
+exit 0
+FAKE_PM
+
+  chmod +x "$fake_bin/sudo" "$fake_bin/$command_name"
+}
+
 printf 'Real HOME:      %s\n' "$REAL_HOME"
 printf 'Temporary HOME: %s\n' "$TMP_HOME"
 printf 'Repository:     %s\n\n' "$REPO_ROOT"
@@ -151,6 +194,48 @@ expected_yazi_x86_asset="yazi-x86_64-unknown-linux-gnu.zip 1c9096f0a83b8102c1943
 [[ "$(official_binary_asset x86_64)" == "$expected_yazi_x86_asset" ]] || fail "expected Yazi x86_64 official binary asset"
 [[ "$(official_binary_asset amd64)" == "$expected_yazi_x86_asset" ]] || fail "expected Yazi amd64 official binary asset"
 printf 'ok: Yazi x86_64 official binary fallback is mapped\n\n'
+
+printf 'Test 5e: apt required package failures stop the package step\n'
+fake_bin="$TMP_HOME/fake-apt-required"
+fake_log="$TMP_HOME/fake-apt-required.log"
+fake_out="$TMP_HOME/fake-apt-required.out"
+fake_err="$TMP_HOME/fake-apt-required.err"
+make_fake_package_manager "$fake_bin" apt-get
+if PATH="$fake_bin:$PATH" FAKE_PM_LOG="$fake_log" FAKE_REQUIRED_FAIL=lazygit HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/scripts/install_packages.sh" --yes --package-manager apt >"$fake_out" 2>"$fake_err"; then
+  fail "expected apt required package failure to return non-zero"
+fi
+grep -q '^error: required apt package(s) could not be installed' "$fake_err" || fail "expected apt required package error"
+grep -q '^  - lazygit$' "$fake_err" || fail "expected failed apt package name"
+grep -q 'install -y neovim' "$fake_log" || fail "expected apt install loop to continue after required failure"
+printf 'ok: apt required package failures are reported and return non-zero\n\n'
+
+printf 'Test 5f: apt optional font package failures warn but do not stop\n'
+fake_bin="$TMP_HOME/fake-apt-optional"
+fake_log="$TMP_HOME/fake-apt-optional.log"
+fake_out="$TMP_HOME/fake-apt-optional.out"
+fake_err="$TMP_HOME/fake-apt-optional.err"
+make_fake_package_manager "$fake_bin" apt-get
+PATH="$fake_bin:$PATH" FAKE_PM_LOG="$fake_log" FAKE_OPTIONAL_FAIL=fontconfig HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/scripts/install_packages.sh" --yes --package-manager apt --install-fonts >"$fake_out" 2>"$fake_err" || fail "optional apt font package failure should not return non-zero"
+grep -q '^warning: optional apt package(s) could not be installed' "$fake_err" || fail "expected apt optional package warning"
+grep -q '^  - fontconfig$' "$fake_err" || fail "expected failed optional apt package name"
+if grep -q '^error: required' "$fake_err"; then
+  fail "optional apt font package failure should not be reported as required"
+fi
+printf 'ok: apt optional font package failures remain non-fatal\n\n'
+
+printf 'Test 5g: dnf required package failures stop the package step\n'
+fake_bin="$TMP_HOME/fake-dnf-required"
+fake_log="$TMP_HOME/fake-dnf-required.log"
+fake_out="$TMP_HOME/fake-dnf-required.out"
+fake_err="$TMP_HOME/fake-dnf-required.err"
+make_fake_package_manager "$fake_bin" dnf
+if PATH="$fake_bin:$PATH" FAKE_PM_LOG="$fake_log" FAKE_REQUIRED_FAIL=eza HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/scripts/install_packages.sh" --yes --package-manager dnf >"$fake_out" 2>"$fake_err"; then
+  fail "expected dnf required package failure to return non-zero"
+fi
+grep -q '^error: required dnf package(s) could not be installed' "$fake_err" || fail "expected dnf required package error"
+grep -q '^  - eza$' "$fake_err" || fail "expected failed dnf package name"
+grep -q 'install -y bat' "$fake_log" || fail "expected dnf install loop to continue after required failure"
+printf 'ok: dnf required package failures are reported and return non-zero\n\n'
 
 printf 'Test 6: terminal font apply updates LXTerminal config in temporary HOME\n'
 mkdir -p "$TMP_HOME/.config/lxterminal"

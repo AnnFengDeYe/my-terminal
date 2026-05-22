@@ -13,6 +13,11 @@ INSTALL_GUI_APPS=0
 INSTALL_FONTS=0
 PACKAGE_MANAGER=""
 OS_NAME=""
+PACKAGES=()
+REQUIRED_PACKAGES=()
+OPTIONAL_PACKAGES=()
+FAILED_REQUIRED=()
+FAILED_OPTIONAL=()
 
 usage() {
   cat <<'EOF'
@@ -77,6 +82,96 @@ append_packages() {
   done < "$file"
 }
 
+load_linux_package_groups() {
+  local required_file="$1"
+  local optional_file="$2"
+
+  read_packages "$required_file"
+  REQUIRED_PACKAGES=("${PACKAGES[@]}")
+  OPTIONAL_PACKAGES=()
+
+  if [[ "$INSTALL_FONTS" == "1" ]]; then
+    read_packages "$optional_file"
+    OPTIONAL_PACKAGES=("${PACKAGES[@]}")
+  fi
+
+  PACKAGES=("${REQUIRED_PACKAGES[@]}")
+  if [[ "${#OPTIONAL_PACKAGES[@]}" -gt 0 ]]; then
+    PACKAGES+=("${OPTIONAL_PACKAGES[@]}")
+  fi
+}
+
+reset_package_failures() {
+  FAILED_REQUIRED=()
+  FAILED_OPTIONAL=()
+}
+
+record_package_failure() {
+  local group="$1"
+  local pkg="$2"
+
+  case "$group" in
+    required)
+      FAILED_REQUIRED+=("$pkg")
+      ;;
+    optional)
+      FAILED_OPTIONAL+=("$pkg")
+      ;;
+    *)
+      die "unknown package failure group: $group"
+      ;;
+  esac
+}
+
+install_package_group() {
+  local installer="$1"
+  local sudo_cmd="$2"
+  local group="$3"
+  local pkg
+  shift 3
+
+  for pkg in "$@"; do
+    if [[ -n "$sudo_cmd" ]]; then
+      "$sudo_cmd" "$installer" install -y "$pkg" || record_package_failure "$group" "$pkg"
+    else
+      "$installer" install -y "$pkg" || record_package_failure "$group" "$pkg"
+    fi
+  done
+}
+
+print_package_failure_list() {
+  local heading="$1"
+  local pkg
+  shift
+
+  printf '%s\n' "$heading" >&2
+  for pkg in "$@"; do
+    printf '  - %s\n' "$pkg" >&2
+  done
+}
+
+finish_linux_package_install() {
+  local manager="$1"
+
+  if [[ "${#FAILED_OPTIONAL[@]}" -gt 0 ]]; then
+    print_package_failure_list \
+      "warning: optional $manager package(s) could not be installed from the enabled repositories:" \
+      "${FAILED_OPTIONAL[@]}"
+    printf 'warning: optional packages are not required for the base terminal setup.\n' >&2
+  fi
+
+  if [[ "${#FAILED_REQUIRED[@]}" -gt 0 ]]; then
+    print_package_failure_list \
+      "error: required $manager package(s) could not be installed from the enabled repositories:" \
+      "${FAILED_REQUIRED[@]}"
+    printf 'hint: no third-party repositories were added; install unavailable tools manually if needed.\n' >&2
+    printf 'hint: rerun with --no-packages or --link-only if you only want to link configs.\n' >&2
+    return 1
+  fi
+
+  return 0
+}
+
 install_brew() {
   if ! require_command brew; then
     if [[ "$DRY_RUN" == "1" ]]; then
@@ -112,8 +207,7 @@ install_brew() {
 }
 
 install_apt() {
-  read_packages "$REPO_ROOT/packages/debian.txt"
-  [[ "$INSTALL_FONTS" == "1" ]] && append_packages "$REPO_ROOT/packages/debian-fonts.txt"
+  load_linux_package_groups "$REPO_ROOT/packages/debian.txt" "$REPO_ROOT/packages/debian-fonts.txt"
 
   require_command apt-get || die "apt-get not found"
   local sudo_cmd
@@ -134,20 +228,12 @@ install_apt() {
     apt-get update
   fi
 
-  local failed=0
-  local pkg
-  for pkg in "${PACKAGES[@]}"; do
-    if [[ -n "$sudo_cmd" ]]; then
-      "$sudo_cmd" apt-get install -y "$pkg" || failed=$((failed + 1))
-    else
-      apt-get install -y "$pkg" || failed=$((failed + 1))
-    fi
-  done
-
-  if [[ "$failed" -gt 0 ]]; then
-    printf 'warning: %s apt package(s) could not be installed from the enabled system repositories.\n' "$failed" >&2
-    printf 'warning: no third-party apt sources were added; install unavailable tools manually if needed.\n' >&2
+  reset_package_failures
+  install_package_group apt-get "$sudo_cmd" required "${REQUIRED_PACKAGES[@]}"
+  if [[ "${#OPTIONAL_PACKAGES[@]}" -gt 0 ]]; then
+    install_package_group apt-get "$sudo_cmd" optional "${OPTIONAL_PACKAGES[@]}"
   fi
+  finish_linux_package_install apt || return 1
 
   if [[ "$INSTALL_GUI_APPS" == "1" ]]; then
     "$REPO_ROOT/scripts/install_ghostty.sh" --yes --package-manager "$PACKAGE_MANAGER"
@@ -186,8 +272,7 @@ install_pacman() {
 }
 
 install_dnf() {
-  read_packages "$REPO_ROOT/packages/fedora.txt"
-  [[ "$INSTALL_FONTS" == "1" ]] && append_packages "$REPO_ROOT/packages/fedora-fonts.txt"
+  load_linux_package_groups "$REPO_ROOT/packages/fedora.txt" "$REPO_ROOT/packages/fedora-fonts.txt"
 
   require_command dnf || die "dnf not found"
   local sudo_cmd
@@ -201,20 +286,12 @@ install_dnf() {
     return 0
   fi
 
-  local failed=0
-  local pkg
-  for pkg in "${PACKAGES[@]}"; do
-    if [[ -n "$sudo_cmd" ]]; then
-      "$sudo_cmd" dnf install -y "$pkg" || failed=$((failed + 1))
-    else
-      dnf install -y "$pkg" || failed=$((failed + 1))
-    fi
-  done
-
-  if [[ "$failed" -gt 0 ]]; then
-    printf 'warning: %s dnf package(s) could not be installed from the enabled repositories.\n' "$failed" >&2
-    printf 'warning: no third-party repositories were added; install unavailable tools manually if needed.\n' >&2
+  reset_package_failures
+  install_package_group dnf "$sudo_cmd" required "${REQUIRED_PACKAGES[@]}"
+  if [[ "${#OPTIONAL_PACKAGES[@]}" -gt 0 ]]; then
+    install_package_group dnf "$sudo_cmd" optional "${OPTIONAL_PACKAGES[@]}"
   fi
+  finish_linux_package_install dnf || return 1
 
   if [[ "$INSTALL_GUI_APPS" == "1" ]]; then
     "$REPO_ROOT/scripts/install_ghostty.sh" --yes --package-manager "$PACKAGE_MANAGER"
