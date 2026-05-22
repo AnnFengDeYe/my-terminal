@@ -32,11 +32,6 @@ if [ -d /snap/bin ]; then
   export PATH="/snap/bin:$PATH"
 fi
 
-# 第三方工具
-export PATH="$HOME/.antigravity/antigravity/bin:$PATH"  # Antigravity
-export STM32CubeMX_PATH="/Applications/STMicroelectronics/STM32CubeMX.app/Contents/Resources"
-
-
 # ==========================================
 # 2. Starship 身份栏配置
 # ==========================================
