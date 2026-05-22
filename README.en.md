@@ -202,8 +202,7 @@ The sanitization report is written to [scripts/sanitize_report.md](./scripts/san
 ├── packages/              # platform package lists
 ├── scripts/               # doctor, restore, import, and maintenance scripts
 ├── Brewfile.common        # common Homebrew CLI dependencies
-├── Brewfile.fonts         # Homebrew font dependencies
-└── Brewfile.macos         # macOS-only dependencies
+└── Brewfile.fonts         # Homebrew font dependencies
 ```
 
 ## 📄 License

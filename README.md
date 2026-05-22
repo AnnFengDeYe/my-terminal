@@ -202,8 +202,7 @@ Linux 可选 Homebrew：
 ├── packages/              # 平台包列表
 ├── scripts/               # doctor、restore、import 等维护脚本
 ├── Brewfile.common        # Homebrew 通用 CLI 依赖
-├── Brewfile.fonts         # Homebrew 字体依赖
-└── Brewfile.macos         # macOS 专属依赖
+└── Brewfile.fonts         # Homebrew 字体依赖
 ```
 
 ## 📄 License
