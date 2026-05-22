@@ -368,6 +368,20 @@ if command -v tmux >/dev/null 2>&1; then
   alias tk="tmux kill-session -t"             # 终止指定 tmux 会话
   alias tka="tmux kill-server"                # 终止所有 tmux 会话
 
+  trn() {
+    if [ -z "${TMUX:-}" ]; then
+      echo "trn: not inside tmux" >&2
+      return 1
+    fi
+
+    if [ "$#" -ne 1 ]; then
+      echo "Usage: trn <new-session-name>" >&2
+      return 1
+    fi
+
+    tmux rename-session "$1"
+  }
+
   alias tagent="tmux new -A -s agent-dev"     # 进入或创建 agent-dev 开发会话
   alias topenclaw="tmux new -A -s openclaw"   # 进入或创建 openclaw 会话
   alias tdaily="tmux new -A -s daily-agent"   # 进入或创建 daily-agent 会话

@@ -28,13 +28,14 @@ rgc	function	ripgrep	rg -C "$1" -- "$2"	Search with a configurable number of con
 rga	function	ripgrep	rg --hidden --follow --glob '!.git' --glob '!node_modules' --glob '!.cache' "$@"	Search hidden files while excluding common noisy directories.	rga PATTERN [PATH]	configs/zsh/zshrc:290
 y	function	yazi	yazi "$@" --cwd-file="$tmp"	Open Yazi and sync the shell directory after exit.	y [PATH]	configs/zsh/zshrc:304
 gsw	function	git	git for-each-ref ... | fzf ... | git switch	Choose and switch Git branches with fzf.	gsw	configs/zsh/zshrc:320
-lg	alias	lazygit	lazygit	Open the lazygit interactive Git UI.	lg	configs/zsh/zshrc:361
-tls	alias	tmux	tmux ls	List tmux sessions.	tls	configs/zsh/zshrc:369
-tnew	alias	tmux	tmux new -s	Create a named tmux session.	tnew SESSION	configs/zsh/zshrc:370
-ta	alias	tmux	tmux attach -t	Attach to a named tmux session.	ta SESSION	configs/zsh/zshrc:371
-td	alias	tmux	tmux detach	Detach from the current tmux session without stopping tasks.	td	configs/zsh/zshrc:372
-tk	alias	tmux	tmux kill-session -t	Kill a named tmux session.	tk SESSION	configs/zsh/zshrc:373
-tka	alias	tmux	tmux kill-server	Kill the tmux server and all sessions.	tka	configs/zsh/zshrc:374
-tagent	alias	tmux	tmux new -A -s agent-dev	Enter or create the agent-dev tmux session.	tagent	configs/zsh/zshrc:376
-topenclaw	alias	tmux	tmux new -A -s openclaw	Enter or create the openclaw tmux session.	topenclaw	configs/zsh/zshrc:377
-tdaily	alias	tmux	tmux new -A -s daily-agent	Enter or create the daily-agent tmux session.	tdaily	configs/zsh/zshrc:378
+lg	alias	lazygit	lazygit	Open the lazygit interactive Git UI.	lg	configs/zsh/zshrc:356
+tls	alias	tmux	tmux ls	List tmux sessions.	tls	configs/zsh/zshrc:364
+tnew	alias	tmux	tmux new -s	Create a named tmux session.	tnew SESSION	configs/zsh/zshrc:365
+ta	alias	tmux	tmux attach -t	Attach to a named tmux session.	ta SESSION	configs/zsh/zshrc:366
+td	alias	tmux	tmux detach	Detach from the current tmux session without stopping tasks.	td	configs/zsh/zshrc:367
+tk	alias	tmux	tmux kill-session -t	Kill a named tmux session.	tk SESSION	configs/zsh/zshrc:368
+tka	alias	tmux	tmux kill-server	Kill the tmux server and all sessions.	tka	configs/zsh/zshrc:369
+trn	function	tmux	tmux rename-session "$1"	Rename the current tmux session.	trn NEW_SESSION_NAME	configs/zsh/zshrc:371
+tagent	alias	tmux	tmux new -A -s agent-dev	Enter or create the agent-dev tmux session.	tagent	configs/zsh/zshrc:385
+topenclaw	alias	tmux	tmux new -A -s openclaw	Enter or create the openclaw tmux session.	topenclaw	configs/zsh/zshrc:386
+tdaily	alias	tmux	tmux new -A -s daily-agent	Enter or create the daily-agent tmux session.	tdaily	configs/zsh/zshrc:387
