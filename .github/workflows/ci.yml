@@ -17,6 +17,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y file shellcheck tmux
 
+      - name: Set up Go for Actionlint
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
       - name: Bash syntax check
         run: |
           bash -n setup.sh install.sh test_install.sh
@@ -25,6 +30,11 @@ jobs:
       - name: ShellCheck
         run: |
           shellcheck --severity=warning -x setup.sh install.sh test_install.sh scripts/*.sh
+
+      - name: Actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint"
 
       - name: Run install safety tests
         run: ./test_install.sh
@@ -84,7 +94,7 @@ jobs:
           ./scripts/workspace_layout.sh --session ci-workspace --no-attach
           test "$(tmux display-message -p -t "ci-workspace:$primary_window" '#{pane_title}')" = "$primary_entry_pane"
           test "$(tmux show-options -t ci-workspace -qv window-size)" = "latest"
-          while IFS=: read -r index window_name role entry_pane initial_pane configure_fn fit_fn; do
+          while IFS=: read -r _ window_name _; do
             test "$(tmux display-message -p -t "ci-workspace:$window_name" '#{window_width}x#{window_height}')" = "120x36"
             test "$(tmux show-window-options -t "ci-workspace:$window_name" -v aggressive-resize)" = "on"
           done <<< "$workspace_manifest"
@@ -106,8 +116,12 @@ jobs:
           tmux show-hooks -t ci-workspace client-resized | grep -q -- '--schedule-fit'
           tmux show-hooks -t ci-workspace client-attached | grep -q -- '--schedule-fit'
           tmux show-hooks -t ci-workspace client-session-changed | grep -q -- '--schedule-fit'
-          ! tmux show-hooks -t ci-workspace after-select-window 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'
-          ! tmux show-hooks -t ci-workspace session-window-changed 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'
+          if tmux show-hooks -t ci-workspace after-select-window 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'; then
+            exit 1
+          fi
+          if tmux show-hooks -t ci-workspace session-window-changed 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'; then
+            exit 1
+          fi
 
           dev_shell_pane="$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_id}' | awk '$1 == "shell" { print $2; exit }')"
           test -n "$dev_shell_pane"

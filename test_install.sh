@@ -293,14 +293,19 @@ assert_backup_exists "$TMP_HOME/.config/lxterminal/lxterminal.conf.backup.*"
 printf 'ok: LXTerminal font config updated and backed up\n\n'
 
 printf 'Test 7: terminal font apply updates cross-platform terminal configs\n'
-mkdir -p "$TMP_HOME/.config/ghostty" "$TMP_HOME/.config/kitty"
+mkdir -p "$TMP_HOME/.config/ghostty" "$TMP_HOME/.config/kitty" "$TMP_HOME/.config/alacritty"
 printf 'theme = dark\nfont-family = Monospace\n' > "$TMP_HOME/.config/ghostty/config"
 printf 'font_family Monospace\nfont_size 10\n' > "$TMP_HOME/.config/kitty/kitty.conf"
+printf '[window]\ntitle = "Terminal"\n' > "$TMP_HOME/.config/alacritty/alacritty.toml"
+printf 'keep existing temp\n' > "$TMP_HOME/.config/alacritty/alacritty.toml.tmp"
 HOME="$TMP_HOME" TEST_HOME="$TMP_HOME" "$REPO_ROOT/scripts/apply_terminal_font.sh" --yes --skip-font-check >/dev/null
 grep -q '^font-family = JetBrainsMono Nerd Font Mono$' "$TMP_HOME/.config/ghostty/config" || fail "Ghostty font family was not updated"
 grep -q '^font-size = 11$' "$TMP_HOME/.config/ghostty/config" || fail "Ghostty font size was not updated"
 grep -q '^font_family JetBrainsMono Nerd Font Mono$' "$TMP_HOME/.config/kitty/kitty.conf" || fail "Kitty font family was not updated"
 grep -q '^font_size 11$' "$TMP_HOME/.config/kitty/kitty.conf" || fail "Kitty font size was not updated"
-printf 'ok: Ghostty and Kitty font configs updated\n\n'
+grep -q '^\[font\]$' "$TMP_HOME/.config/alacritty/alacritty.toml" || fail "Alacritty font table was not added"
+grep -q '^family = "JetBrainsMono Nerd Font Mono"$' "$TMP_HOME/.config/alacritty/alacritty.toml" || fail "Alacritty font family was not updated"
+grep -q '^keep existing temp$' "$TMP_HOME/.config/alacritty/alacritty.toml.tmp" || fail "Alacritty existing temp file should not be overwritten"
+printf 'ok: Ghostty, Kitty, and Alacritty font configs updated\n\n'
 
 printf 'All tests passed. No package installation commands were executed.\n'

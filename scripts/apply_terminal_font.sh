@@ -342,6 +342,8 @@ apply_foot() {
 
 apply_alacritty() {
   local target="$TARGET_HOME/.config/alacritty/alacritty.toml"
+  local target_dir
+  local tmp
 
   if ! command -v alacritty >/dev/null 2>&1 && [[ ! -e "$target" ]]; then
     log "skip: Alacritty not found"
@@ -361,20 +363,22 @@ apply_alacritty() {
 
   [[ "$YES" == "1" ]] || die "no changes made; pass --dry-run to preview or --yes to apply terminal font"
   backup_copy "$target"
-  mkdir -p "$(dirname "$target")"
+  target_dir="$(dirname "$target")"
+  mkdir -p "$target_dir"
   if [[ -e "$target" ]] && grep -Eq '^\[font(\.|])' "$target"; then
     log "warning: Alacritty already has font config; skipped to avoid invalid TOML"
     return 0
   fi
 
+  tmp="$(mktemp "$target_dir/alacritty.toml.XXXXXX")"
   {
     [[ -f "$target" ]] && cat "$target"
     printf '\n[font]\n'
     printf 'size = %s\n' "$FONT_SIZE"
     printf '\n[font.normal]\n'
     printf 'family = "%s"\n' "$FONT_FAMILY"
-  } > "$target.tmp"
-  mv "$target.tmp" "$target"
+  } > "$tmp"
+  mv "$tmp" "$target"
   log "applied: Alacritty font set to $FONT_FAMILY $FONT_SIZE"
 }
 
