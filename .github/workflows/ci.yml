@@ -80,6 +80,7 @@ jobs:
         run: |
           cleanup() {
             tmux kill-session -t ci-workspace 2>/dev/null || true
+            tmux kill-session -t ci-workspace-agents 2>/dev/null || true
             tmux kill-session -t ci-showcase 2>/dev/null || true
           }
           trap cleanup EXIT
@@ -109,10 +110,19 @@ jobs:
           test "$(tmux list-panes -t ci-workspace:btop | wc -l | tr -d ' ')" = "1"
           test "$(tmux list-panes -t ci-workspace:manual | wc -l | tr -d ' ')" = "1"
           test "$(tmux list-panes -t ci-workspace:agent -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "agent-1 agent-2 "
+          test "$(tmux list-panes -t ci-workspace:agent -F '#{pane_title}' | tr '\n' ' ')" = "Codex Gemini "
           test "$(tmux list-panes -t ci-workspace:ssh -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "ssh-1 ssh-3 ssh-2 ssh-4 "
           test "$(tmux list-panes -t ci-workspace:logs -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "logs-1 logs-2 "
           test "$(tmux list-panes -t ci-workspace:btop -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "monitor "
           test "$(tmux list-panes -t ci-workspace:manual -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "manual "
+
+          custom_agent_config="$(mktemp)"
+          printf 'agent-1\tCodex\tcodex\nagent-2\tGemini\tgemini\nagent-3\tClaude\tclaude\n' > "$custom_agent_config"
+          WORKSPACE_AGENT_CONFIG="$custom_agent_config" WORKSPACE_COLS=120 WORKSPACE_LINES=36 ./scripts/workspace_layout.sh --session ci-workspace-agents --reset --no-attach
+          test "$(tmux list-panes -t ci-workspace-agents:agent | wc -l | tr -d ' ')" = "3"
+          for role in agent-1 agent-2 agent-3; do
+            tmux list-panes -t ci-workspace-agents:agent -F '#{@workspace_pane_role}' | grep -qx "$role"
+          done
           tmux show-hooks -t ci-workspace client-resized | grep -q -- '--schedule-fit'
           tmux show-hooks -t ci-workspace client-attached | grep -q -- '--schedule-fit'
           tmux show-hooks -t ci-workspace client-session-changed | grep -q -- '--schedule-fit'

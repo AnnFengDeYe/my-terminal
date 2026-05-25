@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 
 WORK_DIR="${WORKSPACE_DIR:-$(pwd -P)}"
 SESSION="${WORKSPACE_SESSION:-my-terminal-workspace}"
@@ -28,8 +29,8 @@ Create a daily tmux workspace:
     - right top: lazygit
     - right bottom: yazi
   - window 2: agent
-    - left: agent-1 shell
-    - right: agent-2 shell
+    - configurable AI agent panes
+    - default: Codex / Gemini, falling back to shell if the CLI is missing
   - window 3: ssh
     - 4 shells for remote sessions
   - window 4: logs
@@ -57,6 +58,9 @@ Options:
 Environment:
   WORKSPACE_COLS / WORKSPACE_LINES  Override the detected tmux size.
   WORKSPACE_REFIT_LAYOUT=1          Reset managed pane layouts during fit/repair.
+  WORKSPACE_AGENT_CONFIG=FILE       Read agent pane config from FILE.
+  WORKSPACE_AGENT_LAYOUT=auto|horizontal|vertical|tiled
+                                   Override the agent window layout.
 EOF
 }
 
@@ -223,8 +227,188 @@ run_manual() {
   exec_shell
 }
 
+trim_space() {
+  local value="$1"
+
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+default_workspace_agent_records() {
+  printf '%s\n' \
+    "agent-1|Codex|codex" \
+    "agent-2|Gemini|gemini"
+}
+
+workspace_agent_config_file() {
+  local candidate
+
+  if [[ -n "${WORKSPACE_AGENT_CONFIG:-}" ]]; then
+    [[ -f "$WORKSPACE_AGENT_CONFIG" ]] && printf '%s\n' "$WORKSPACE_AGENT_CONFIG"
+    return 0
+  fi
+
+  for candidate in \
+    "$WORK_DIR/.my-terminal/agents.tsv" \
+    "${HOME:-}/.config/my-terminal/workspace_agents.tsv" \
+    "$REPO_ROOT/configs/workspace/agents.tsv"; do
+    [[ -n "$candidate" && -f "$candidate" ]] || continue
+    printf '%s\n' "$candidate"
+    return 0
+  done
+}
+
+parse_workspace_agent_config() {
+  local command
+  local config_file="$1"
+  local _extra
+  local line
+  local role
+  local title
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -n "$(trim_space "$line")" ]] || continue
+    [[ "$line" == \#* ]] && continue
+
+    IFS=$'\t' read -r role title command _extra <<< "$line"
+    role="$(trim_space "${role:-}")"
+    title="$(trim_space "${title:-}")"
+    command="$(trim_space "${command:-}")"
+
+    [[ "$role" == "role" && "$title" == "title" ]] && continue
+    [[ -n "$role" ]] || continue
+    [[ "$role" =~ ^[A-Za-z0-9_.-]+$ ]] || continue
+    [[ -n "$title" ]] || title="$role"
+
+    printf '%s|%s|%s\n' "$role" "$title" "$command"
+  done < "$config_file"
+}
+
+workspace_agent_records() {
+  local config_file
+  local record
+  local records=()
+
+  config_file="$(workspace_agent_config_file || true)"
+  if [[ -n "$config_file" ]]; then
+    while IFS= read -r record; do
+      [[ -n "$record" ]] || continue
+      records+=("$record")
+    done < <(parse_workspace_agent_config "$config_file")
+  fi
+
+  if [[ "${#records[@]}" -gt 0 ]]; then
+    printf '%s\n' "${records[@]}"
+  else
+    default_workspace_agent_records
+  fi
+}
+
+workspace_agent_record_by_role() {
+  local command
+  local role
+  local target_role="$1"
+  local title
+
+  while IFS='|' read -r role title command; do
+    if [[ "$role" == "$target_role" ]]; then
+      printf '%s|%s|%s\n' "$role" "$title" "$command"
+      return 0
+    fi
+  done < <(workspace_agent_records)
+
+  return 1
+}
+
+first_workspace_agent_record() {
+  local record
+
+  while IFS= read -r record; do
+    [[ -n "$record" ]] || continue
+    printf '%s\n' "$record"
+    return 0
+  done < <(workspace_agent_records)
+
+  return 1
+}
+
+agent_command_executable() {
+  local command="$1"
+  local token
+
+  while :; do
+    read -r token _ <<< "$command"
+    [[ -n "${token:-}" ]] || return 1
+    case "$token" in
+      *=*)
+        command="${command#"$token"}"
+        command="$(trim_space "$command")"
+        ;;
+      command|exec)
+        command="${command#"$token"}"
+        command="$(trim_space "$command")"
+        ;;
+      env)
+        command="${command#"$token"}"
+        command="$(trim_space "$command")"
+        ;;
+      *)
+        printf '%s\n' "$token"
+        return 0
+        ;;
+    esac
+  done
+}
+
+run_agent() {
+  local agent_command
+  local executable
+  local record
+  local role
+  local shell_path="${SHELL:-/bin/sh}"
+  local target_role="${1:-}"
+  local title
+
+  cd "$WORK_DIR"
+
+  if [[ -n "$target_role" ]]; then
+    record="$(workspace_agent_record_by_role "$target_role" || true)"
+  else
+    record="$(first_workspace_agent_record || true)"
+  fi
+
+  if [[ -z "$record" ]]; then
+    clear 2>/dev/null || true
+    printf 'workspace agent is not configured'
+    [[ -n "$target_role" ]] && printf ': %s' "$target_role"
+    printf '\n\n'
+    exec_shell
+  fi
+
+  IFS='|' read -r role title agent_command <<< "$record"
+  if [[ -z "$agent_command" ]]; then
+    exec_shell
+  fi
+
+  executable="$(agent_command_executable "$agent_command" || true)"
+  if [[ -z "$executable" ]] || ! command -v "$executable" >/dev/null 2>&1; then
+    clear 2>/dev/null || true
+    printf 'workspace agent configured: %s\n' "$title"
+    printf 'command not found in PATH: %s\n' "${executable:-$agent_command}"
+    printf 'Install it yourself, edit the agent config, or continue in this shell.\n\n'
+    exec_shell
+  fi
+
+  "$shell_path" -lc "$agent_command" || true
+  exec_shell
+}
+
 run_pane_mode() {
   case "$PANE_MODE" in
+    agent) run_agent ;;
+    agent:*) run_agent "${PANE_MODE#agent:}" ;;
     editor) run_editor ;;
     files) run_files ;;
     git) run_git ;;
@@ -241,7 +425,7 @@ shell_quote() {
 
 WORKSPACE_WINDOWS=(
   "dev|primary|shell|editor|configure_dev_window|fit_dev_layout"
-  "agent|secondary||shell|configure_agent_window|fit_agent_layout"
+  "agent|secondary||agent|configure_agent_window|fit_agent_layout"
   "ssh|secondary||shell|configure_ssh_window|fit_ssh_layout"
   "logs|secondary||shell|configure_logs_window|fit_logs_layout"
   "btop|secondary||monitor|configure_btop_window|fit_noop_layout"
@@ -653,15 +837,45 @@ fit_dev_layout() {
 }
 
 fit_agent_layout() {
-  local agent_1_pane
-  local agent_2_pane
+  local _agent_command
+  local layout="${WORKSPACE_AGENT_LAYOUT:-auto}"
+  local pane_count=0
+  local pane_id
+  local role
+  local title
   local window_id="$1"
 
-  agent_1_pane="$(pane_id_by_role_or_title "$window_id" agent-1 agent-1 || true)"
-  agent_2_pane="$(pane_id_by_role_or_title "$window_id" agent-2 agent-2 || true)"
-  [[ -n "$agent_1_pane" && -n "$agent_2_pane" ]] || return 0
+  while IFS='|' read -r role title _agent_command; do
+    pane_id="$(pane_id_by_role_or_title "$window_id" "$role" "$title" || true)"
+    [[ -n "$pane_id" ]] || return 0
+    pane_count=$((pane_count + 1))
+  done < <(workspace_agent_records)
 
-  tmux select-layout -t "$window_id" even-horizontal >/dev/null 2>&1 || true
+  case "$layout" in
+    horizontal)
+      ((pane_count > 1)) && tmux select-layout -t "$window_id" even-horizontal >/dev/null 2>&1 || true
+      ;;
+    vertical)
+      ((pane_count > 1)) && tmux select-layout -t "$window_id" even-vertical >/dev/null 2>&1 || true
+      ;;
+    tiled)
+      ((pane_count > 1)) && tmux select-layout -t "$window_id" tiled >/dev/null 2>&1 || true
+      ;;
+    auto|"")
+      if ((pane_count == 2)); then
+        tmux select-layout -t "$window_id" even-horizontal >/dev/null 2>&1 || true
+      elif ((pane_count > 2)); then
+        tmux select-layout -t "$window_id" tiled >/dev/null 2>&1 || true
+      fi
+      ;;
+    *)
+      if ((pane_count == 2)); then
+        tmux select-layout -t "$window_id" even-horizontal >/dev/null 2>&1 || true
+      elif ((pane_count > 2)); then
+        tmux select-layout -t "$window_id" tiled >/dev/null 2>&1 || true
+      fi
+      ;;
+  esac
 }
 
 fit_logs_layout() {
@@ -925,18 +1139,31 @@ configure_dev_window() {
 }
 
 configure_agent_window() {
-  local agent_1_pane
-  local agent_2_pane
+  local _agent_command
+  local agent_pane
+  local anchor_pane
+  local index=0
+  local pane_mode
+  local role
   local script_cmd="$2"
+  local title
   local window_id="$1"
 
   set_window_pane_options "$window_id"
 
-  agent_1_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
-  agent_2_pane="$(tmux split-window -h -P -F '#{pane_id}' -t "$agent_1_pane" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane shell")"
+  anchor_pane="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
+  while IFS='|' read -r role title _agent_command; do
+    pane_mode="agent:$role"
+    if [[ "$index" == "0" ]]; then
+      agent_pane="$anchor_pane"
+    else
+      agent_pane="$(tmux split-window -h -P -F '#{pane_id}' -t "$anchor_pane" -c "$WORK_DIR" "$script_cmd --dir $(shell_quote "$WORK_DIR") --pane $(shell_quote "$pane_mode")")"
+    fi
 
-  set_workspace_pane_role "$agent_1_pane" agent-1 "agent-1"
-  set_workspace_pane_role "$agent_2_pane" agent-2 "agent-2"
+    set_workspace_pane_role "$agent_pane" "$role" "$title"
+    index=$((index + 1))
+  done < <(workspace_agent_records)
+
   fit_agent_layout "$window_id"
 }
 
@@ -1054,9 +1281,14 @@ workspace_pane_records() {
         "shell|shell|shell"
       ;;
     agent)
-      printf '%s\n' \
-        "agent-1|agent-1|shell" \
-        "agent-2|agent-2|shell"
+      local _agent_command
+      local role
+      local title
+
+      while IFS='|' read -r role title _agent_command; do
+        [[ -n "$role" && -n "$title" ]] || continue
+        printf '%s|%s|agent:%s\n' "$role" "$title" "$role"
+      done < <(workspace_agent_records)
       ;;
     ssh)
       printf '%s\n' \

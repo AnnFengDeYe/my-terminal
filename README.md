@@ -21,11 +21,20 @@
 
 - 底部 **tmux workspace bar** 使用 `1:dev`、`2:agent`、`3:ssh`、`4:logs`、`5:btop`、`6:manual` 在不同工作上下文之间切换。
 - **`1:dev`**：主开发工作区，包含 `Code` / `Command` / `Git` / `Files` 四个 pane。
-- **`2:agent`**：AI 辅助工作区，默认左右二分为 `agent-1` / `agent-2`，可按需运行 Codex 或其他 AI CLI。
+- **`2:agent`**：AI 辅助工作区，默认左右二分为 `Codex` / `Gemini`。如果本机已安装对应 CLI，会自动进入；未安装时保持普通 shell。
 - **`3:ssh`**：远程连接工作区，默认四宫格 `ssh-1` 到 `ssh-4`，方便同时连接多个设备。
 - **`4:logs`**：测试、日志和 watch 命令工作区，默认左右二分为 `logs-1` / `logs-2`。
 - **`5:btop`**：单独的系统监控页面，默认运行 `btop`。
 - **`6:manual`**：别名和函数说明书，可快速查询 `zshrc` 中常用命令的用途。
+
+Agent 默认配置来自 `configs/workspace/agents.tsv`。仓库不会自动安装 Codex、Gemini 或其他 AI CLI；每个 pane 启动时只检测配置里的命令是否存在，存在才进入对应 CLI，不存在就提示并回到 shell。需要自定义时，可设置 `WORKSPACE_AGENT_CONFIG=/path/to/agents.tsv`，或在项目内创建 `.my-terminal/agents.tsv`，格式如下：
+
+```tsv
+# role	title	command
+agent-1	Codex	codex
+agent-2	Gemini	gemini
+agent-3	Claude	claude
+```
 
 `manual` 的说明数据来自 `configs/zsh/workplace_manual.tsv`；新增或调整别名后，可直接编辑这个表格补充说明。
 

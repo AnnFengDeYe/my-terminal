@@ -21,11 +21,20 @@ It supports macOS, Debian, Ubuntu, Raspberry Pi OS, Arch Linux, and Fedora. The 
 
 - The bottom **tmux workspace bar** switches between contexts with `1:dev`, `2:agent`, `3:ssh`, `4:logs`, `5:btop`, and `6:manual`.
 - **`1:dev`**: the main development workspace with `Code` / `Command` / `Git` / `Files` panes.
-- **`2:agent`**: AI assistant workspace split into `agent-1` / `agent-2`, ready to run Codex or other AI CLIs as needed.
+- **`2:agent`**: AI assistant workspace split into `Codex` / `Gemini` by default. If the matching CLI is installed, the pane enters it automatically; otherwise it stays as a normal shell.
 - **`3:ssh`**: remote session workspace with a 4-pane `ssh-1` to `ssh-4` grid for multiple devices.
 - **`4:logs`**: tests, logs, and watch commands split into `logs-1` / `logs-2`.
 - **`5:btop`**: a dedicated system monitor page running `btop` by default.
 - **`6:manual`**: an alias and function manual for quickly looking up common `zshrc` commands.
+
+The default agent config lives in `configs/workspace/agents.tsv`. This repository does not install Codex, Gemini, or any other AI CLI automatically; each pane only checks whether the configured command exists, starts it when available, and falls back to a shell when it is missing. To customize agents, set `WORKSPACE_AGENT_CONFIG=/path/to/agents.tsv` or create `.my-terminal/agents.tsv` inside a project:
+
+```tsv
+# role	title	command
+agent-1	Codex	codex
+agent-2	Gemini	gemini
+agent-3	Claude	claude
+```
 
 The `manual` data lives in `configs/zsh/workplace_manual.tsv`; edit that table when adding or changing aliases.
 
