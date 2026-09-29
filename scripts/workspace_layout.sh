@@ -129,9 +129,10 @@ Workspaces:
 Agents:
   --send TEXT     Paste TEXT into every running agent pane and press Enter.
                   Use "-" to read TEXT from stdin. A pane only counts when
-                  the workspace started its agent and the agent is still
-                  running, or when the program in front is the configured
-                  agent. Shell prompts, ssh, and REPLs are skipped.
+                  its agent is the program that holds the terminal; shell
+                  prompts, ssh, and REPLs are skipped. Enter is only pressed
+                  once the text shows up, so an agent that is asking a
+                  question is left waiting for your answer.
   --to ROLES      With --send, only target these comma-separated roles or titles.
   --no-enter      With --send, paste without pressing Enter.
   --agent-worktrees

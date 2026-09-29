@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2030,SC2031 # a subshell gives a scenario its own HOME and tmux server
 set -euo pipefail
 
 # Workspace tests. Everything runs against a private tmux server, a temporary
@@ -23,7 +24,7 @@ TEST_ROOT="$(mktemp -d /tmp/mtws.XXXXXX)"
 TEST_ROOT="$(cd "$TEST_ROOT" && pwd -P)"
 OUTER_SOCKET="mtws-outer-$$"
 
-mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/home" "$TEST_ROOT/tmux" "$TEST_ROOT/tmux2" "$TEST_ROOT/projects"
+mkdir -p "$TEST_ROOT/bin" "$TEST_ROOT/home" "$TEST_ROOT/tmux" "$TEST_ROOT/tmux2" "$TEST_ROOT/tmux3" "$TEST_ROOT/projects"
 
 link_tool() {
   [[ -e "$TEST_ROOT/bin/$1" ]] || ln -s "$2" "$TEST_ROOT/bin/$1"
@@ -51,6 +52,28 @@ done
 link_tool tmux "$(command -v tmux)"
 link_tool git "$(command -v git)"
 
+# Stands in for an agent that runs inside an interpreter, the way a Node CLI
+# does: the process is called "sh", and only its command line names the agent.
+cat > "$TEST_ROOT/bin/fake-agent" <<'FAKE_AGENT'
+#!/bin/sh
+while IFS= read -r line; do
+  printf 'agent got: %s\n' "$line"
+done
+FAKE_AGENT
+
+# Stands in for an agent that is asking a question: what is typed is not
+# shown, and Enter answers.
+cat > "$TEST_ROOT/bin/fake-dialog" <<'FAKE_DIALOG'
+#!/bin/sh
+stty -echo
+printf 'Press enter to continue\n'
+IFS= read -r answer
+printf 'CONFIRMED [%s]\n' "$answer"
+stty echo
+exec cat
+FAKE_DIALOG
+chmod +x "$TEST_ROOT/bin/fake-agent" "$TEST_ROOT/bin/fake-dialog"
+
 while IFS='=' read -r name _; do
   case "$name" in
     WORKSPACE_*|SHOWCASE_*|XDG_*|TMUX|TMUX_PANE|GIT_*) unset "$name" ;;
@@ -72,6 +95,7 @@ cleanup() {
   tmux kill-server >/dev/null 2>&1 || true
   tmux -L "$OUTER_SOCKET" kill-server >/dev/null 2>&1 || true
   TMUX_TMPDIR="$TEST_ROOT/tmux2" tmux kill-server >/dev/null 2>&1 || true
+  TMUX_TMPDIR="$TEST_ROOT/tmux3" tmux kill-server >/dev/null 2>&1 || true
 
   if [[ "${KEEP_TEST_ROOT:-0}" == "1" ]]; then
     printf 'Keeping test root for inspection: %s\n' "$TEST_ROOT"
@@ -194,6 +218,25 @@ start_outer_client() {
     env -u TMUX -u TMUX_PANE "$WORKSPACE" --session "$1"
   # Older tmux ignores -x and -y for a detached session, so size it here.
   tmux -L "$OUTER_SOCKET" resize-window -t outer -x 132 -y 43
+}
+
+# The process group that holds the terminal of a pane, and its command line.
+pane_front() {
+  local front
+
+  front="$(ps -o tpgid= -p "$(pane_option "$1" pane_pid)" | tr -d '[:space:]')"
+  printf '%s %s\n' "$front" "$(ps -o args= -p "$front" 2>/dev/null || true)"
+}
+
+pane_front_shows() {
+  [[ "$(pane_front "$1")" == *"$2"* ]]
+}
+
+pane_front_is_not_root() {
+  local front
+
+  front="$(pane_front "$1")"
+  [[ -n "${front%% *}" && "${front%% *}" != "$(pane_option "$1" pane_pid)" ]]
 }
 
 picker_keys() {
@@ -626,6 +669,73 @@ assert_contains "$send_report" "skip: r3 (Leaving)" "send report r3"
 sleep 0.5
 assert_not_contains "$(pane_text "$race_pane")" "INJECTED-42" "a shell left behind by an agent"
 printf 'ok: prompts are pasted into agents only\n\n'
+
+# ------------------------------------------------------------------
+printf 'Test 12b: what holds the terminal decides, not what was recorded\n'
+agents_front="$TEST_ROOT/agents-front.tsv"
+write_agents "$agents_front" \
+  'm1\tManual\tfake-agent' \
+  'd1\tDialog\tfake-dialog'
+WORKSPACE_AGENT_CONFIG="$agents_front" workspace --session ci-front --dir "$TEST_ROOT/projects/api" --reset --no-attach >/dev/null
+manual_pane="$(pane_by_role ci-front:agent m1)"
+dialog_pane="$(pane_by_role ci-front:agent d1)"
+wait_for "m1 to start" pane_state_is "$manual_pane" running
+wait_for "d1 to start" pane_state_is "$dialog_pane" running
+wait_for "d1 to ask its question" pane_shows "$dialog_pane" "Press enter to continue"
+
+# An agent that is asking a question does not show pasted text. Enter would
+# answer the question, so it is not pressed.
+send_report="$(workspace --session ci-front --send "a question for the agents" || true)"
+assert_contains "$send_report" "sent: m1 (Manual)" "send report m1"
+assert_contains "$send_report" "held: d1 (Dialog)" "send report d1"
+wait_for "m1 to answer" pane_shows "$manual_pane" "agent got: a question for the agents"
+sleep 0.5
+assert_not_contains "$(pane_text "$dialog_pane")" "CONFIRMED" "a question answered by --send"
+if workspace --session ci-front --send "only the dialog" --to d1 >/dev/null 2>&1; then
+  fail "--send should fail when the only agent held the text back"
+fi
+
+# Answered by hand, the same agent takes the next prompt.
+tmux send-keys -t "$dialog_pane" C-u Enter
+wait_for "d1 to continue" pane_shows "$dialog_pane" "CONFIRMED"
+send_report="$(workspace --session ci-front --send "after the question" --to d1)"
+assert_contains "$send_report" "sent: d1 (Dialog)" "send report d1 after its question"
+wait_for "d1 to receive the prompt" pane_shows "$dialog_pane" "after the question"
+
+# An agent that was quit and started again by hand is no longer the process
+# the workspace started. It is recognised by its command line, which names
+# the agent even though the process is the interpreter.
+tmux send-keys -t "$manual_pane" C-d
+wait_for "m1 to be back at its shell" pane_state_is "$manual_pane" idle
+send_report="$(workspace --session ci-front --send "nobody is there" --to m1 || true)"
+assert_contains "$send_report" "skip: m1 (Manual)" "send report m1 at its shell"
+tmux send-keys -t "$manual_pane" "fake-agent" Enter
+wait_for "m1 to be started by hand" pane_front_shows "$manual_pane" "fake-agent"
+assert_eq "idle" "$(pane_option "$manual_pane" @workspace_agent_state)" "state of an agent started by hand"
+send_report="$(workspace --session ci-front --send "after the restart" --to m1)"
+assert_contains "$send_report" "sent: m1 (Manual)" "send report m1 after a restart by hand"
+wait_for "m1 to answer again" pane_shows "$manual_pane" "agent got: after the restart"
+
+# A login profile that replaces the shell never runs the command it was
+# given. The pane is marked as running, yet a prompt is what holds the
+# terminal.
+(
+  export TMUX_TMPDIR="$TEST_ROOT/tmux3"
+  export HOME="$TEST_ROOT/home-profile"
+  mkdir -p "$HOME"
+  printf 'exec /bin/sh -i\n' > "$HOME/.profile"
+  write_agents "$TEST_ROOT/agents-profile.tsv" 'h1\tReplaced\tcat'
+  WORKSPACE_AGENT_CONFIG="$TEST_ROOT/agents-profile.tsv" workspace --session ci-profile --dir "$TEST_ROOT/projects/api" --no-attach >/dev/null
+  profile_pane="$(pane_by_role ci-profile:agent h1)"
+  wait_for "h1 to be marked as running" pane_state_is "$profile_pane" running
+  wait_for "the shell of the profile to take the terminal" pane_front_is_not_root "$profile_pane"
+  send_report="$(workspace --session ci-profile --send "$prompt" || true)"
+  assert_contains "$send_report" "skip: h1 (Replaced)" "send report for a replaced shell"
+  sleep 0.5
+  assert_not_contains "$(pane_text "$profile_pane")" "INJECTED" "a shell started by a login profile"
+)
+TMUX_TMPDIR="$TEST_ROOT/tmux3" tmux kill-server >/dev/null 2>&1 || true
+printf 'ok: dialogs are left alone, restarts are found, replaced shells are skipped\n\n'
 
 # ------------------------------------------------------------------
 printf 'Test 13: agents can work in their own git worktrees\n'

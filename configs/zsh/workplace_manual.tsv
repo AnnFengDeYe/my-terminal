@@ -4,7 +4,7 @@ workplace	function	workspace	$MY_TERMINAL_HOME/scripts/workspace_layout.sh "$@"	
 wp	alias	workspace	workplace --project	Enter the workspace that belongs to the current project, creating it when needed. Not defined when another wp command, such as WP-CLI, is installed.	wp [--agent-worktrees|--repair|--reset]	configs/zsh/zshrc:113
 wpick	alias	workspace	workplace --pick	Pick a running workspace, or a project directory to open as a new workspace. Also on Alt+0 inside tmux.	wpick	configs/zsh/zshrc:115
 wls	alias	workspace	workplace --sessions	List running workspaces with their directories.	wls	configs/zsh/zshrc:116
-wsend	alias	workspace	workplace --send	Paste one prompt into every running agent pane and press Enter. Shell prompts are skipped.	wsend TEXT [--to ROLE[,ROLE]] [--no-enter]	configs/zsh/zshrc:117
+wsend	alias	workspace	workplace --send	Paste one prompt into every running agent pane and press Enter. Shell prompts are skipped, and an agent that is asking a question is left for you.	wsend TEXT [--to ROLE[,ROLE]] [--no-enter]	configs/zsh/zshrc:117
 ls	alias	eza	eza --icons=always --group-directories-first --hyperlink	Show a compact directory listing with directories first and clickable paths.	ls [PATH]	configs/zsh/zshrc:126
 ll	alias	eza	eza -lah --icons=always --group-directories-first --git --octal-permissions	Show a detailed listing with hidden files, Git status, and octal permissions.	ll [PATH]	configs/zsh/zshrc:127
 la	alias	eza	eza -la --icons=always --group-directories-first	Show hidden files with directories first.	la [PATH]	configs/zsh/zshrc:128
