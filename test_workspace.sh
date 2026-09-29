@@ -239,6 +239,10 @@ pane_front_is_not_root() {
   [[ -n "${front%% *}" && "${front%% *}" != "$(pane_option "$1" pane_pid)" ]]
 }
 
+pane_is_released() {
+  [[ "$(pane_option "$1" pane_in_mode)" == "0" && -z "$(pane_option "$1" @workspace_shielded)" ]]
+}
+
 picker_keys() {
   tmux list-keys -T root | awk '/ --pick/ { for (i = 1; i < NF; i++) if ($i == "root") print $(i + 1) }' | sort | tr '\n' ' '
 }
@@ -914,6 +918,45 @@ assert_eq "0" "$(pane_option "$repo_shell" pane_in_mode)" "copy mode in the work
 tmux send-keys -t "$repo_shell" C-u
 tmux -L "$OUTER_SOCKET" kill-server
 printf 'ok: the picker only switches\n\n'
+
+# ------------------------------------------------------------------
+printf 'Test 15c: entering a running workspace leaves it the way it was\n'
+workspace --session ci-reenter --dir "$TEST_ROOT/projects/api" --no-attach >/dev/null
+tmux select-window -t ci-reenter:logs
+reenter_pane="$(pane_by_role ci-reenter:logs logs-1)"
+tmux select-pane -t "$reenter_pane"
+tmux send-keys -t "$reenter_pane" "half typed command"
+reenter_dev="$(pane_by_role ci-reenter:dev shell)"
+tmux send-keys -t "$reenter_dev" "typed in the entry pane"
+
+workspace --session ci-reenter --no-attach >/dev/null
+assert_eq "logs" "$(tmux display-message -p -t '=ci-reenter:' '#{window_name}')" "window after entering without attaching"
+
+start_outer_client ci-reenter
+reenter_client_attached() {
+  [[ -n "$(tmux list-clients -t '=ci-reenter:' -F '#{client_name}' 2>/dev/null)" ]]
+}
+wait_for "a client to attach to ci-reenter" reenter_client_attached
+assert_eq "logs" "$(tmux display-message -p -t '=ci-reenter:' '#{window_name}')" "window after attaching"
+assert_eq "$reenter_pane" "$(tmux display-message -p -t '=ci-reenter:' '#{pane_id}')" "pane after attaching"
+wait_for "the shield on the pane in front to end" pane_is_released "$reenter_pane"
+sleep 0.5
+assert_eq "logs" "$(tmux display-message -p -t '=ci-reenter:' '#{window_name}')" "window after the shield ended"
+assert_contains "$(pane_text "$reenter_pane")" "half typed command" "input of the pane in front"
+assert_contains "$(pane_text "$reenter_dev")" "typed in the entry pane" "input of the entry pane"
+tmux -L "$OUTER_SOCKET" kill-server
+
+# Copy mode that the user entered is not the shield, and stays.
+tmux copy-mode -t "$reenter_pane"
+start_outer_client ci-reenter
+wait_for "a client to attach to ci-reenter again" reenter_client_attached
+sleep 4
+assert_eq "1" "$(pane_option "$reenter_pane" pane_in_mode)" "copy mode the user entered"
+tmux send-keys -t "$reenter_pane" -X cancel
+tmux send-keys -t "$reenter_pane" C-u
+tmux send-keys -t "$reenter_dev" C-u
+tmux -L "$OUTER_SOCKET" kill-server
+printf 'ok: same window, same pane, same input\n\n'
 
 # ------------------------------------------------------------------
 printf 'Test 16: a hostile directory name is only ever a directory name\n'
