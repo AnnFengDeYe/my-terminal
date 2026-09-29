@@ -21,7 +21,6 @@ TARGET_EXPLICIT=0
 [[ "$DIR_EXPLICIT" == "1" || "$SESSION_EXPLICIT" == "1" ]] && TARGET_EXPLICIT=1
 # Set when the target turns out to be the workspace the command runs in.
 INSIDE_TARGET=0
-QUIET_ENTRY=0
 PROJECT_MODE=0
 [[ "${WORKSPACE_SESSION_MODE:-}" == "project" ]] && PROJECT_MODE=1
 ACTION=""
@@ -1352,6 +1351,47 @@ schedule_workspace_entry_pane() {
   run_workspace_job "$delay" select-entry "$session_id"
 }
 
+# A workspace that is already running is entered the way it was left: same
+# window, same pane, and whatever was typed at a prompt still there. Replies
+# to terminal probes can still arrive as keystrokes right after attaching,
+# so the pane in front is shielded for a moment when it sits at a shell
+# prompt. Nothing is selected and nothing is cleared.
+shield_active_workspace_pane() {
+  local pane_id
+
+  pane_id="$(tmux display-message -p -t "$SESSION_TARGET" '#{pane_id}' 2>/dev/null || true)"
+  [[ -n "$pane_id" ]] || return 0
+  pane_is_plain_shell "$pane_id" || return 0
+  tmux copy-mode -H -t "$pane_id" >/dev/null 2>&1 || return 0
+  tmux set-option -p -t "$pane_id" @workspace_shielded 1 >/dev/null 2>&1 || true
+}
+
+# Ends the shield on the panes that were shielded, and on no others: a pane
+# the user put into copy mode stays there.
+release_workspace_shield() {
+  local in_mode
+  local pane_id
+  local shielded
+
+  while IFS='|' read -r pane_id shielded in_mode; do
+    [[ "$shielded" == "1" ]] || continue
+    if [[ "$in_mode" == "1" ]]; then
+      tmux copy-mode -q -t "$pane_id" >/dev/null 2>&1 || true
+    fi
+    tmux set-option -p -u -t "$pane_id" @workspace_shielded >/dev/null 2>&1 || true
+  done < <(
+    tmux list-panes -s -t "$SESSION_TARGET" -F '#{pane_id}|#{@workspace_shielded}|#{pane_in_mode}' 2>/dev/null || true
+  )
+}
+
+schedule_workspace_shield_release() {
+  local delay="${WORKSPACE_ENTRY_DELAY:-2.5}"
+  local session_id
+
+  session_id="$(workspace_session_id)" || return 0
+  run_workspace_job "$delay" release-shield "$session_id"
+}
+
 schedule_workspace_fit() {
   local delay="${WORKSPACE_FIT_DELAY:-0.25}"
   local session_id
@@ -1381,24 +1421,23 @@ set_workspace_hooks() {
 }
 
 attach_or_switch() {
+  local is_new="$SESSION_CREATED"
+
   set_workspace_hooks
 
-  # Switching an attached client to a running workspace needs no shield: no
-  # terminal is probed, and the workspace stays the way it was left.
-  if [[ "$QUIET_ENTRY" == "1" && "$ATTACH" == "1" && -n "${TMUX:-}" ]]; then
-    fit_workspace_to_terminal
-    tmux switch-client -t "$SESSION_TARGET"
-    return 0
-  fi
-
   if [[ "$ATTACH" == "1" ]]; then
-    shield_workspace_entry_pane
+    if [[ "$is_new" == "1" ]]; then
+      shield_workspace_entry_pane
+    else
+      shield_active_workspace_pane
+    fi
   fi
 
   fit_workspace_to_terminal
 
   if [[ "$ATTACH" != "1" ]]; then
-    select_workspace_entry_pane
+    # Only a workspace that was just built is put on its entry pane.
+    [[ "$is_new" != "1" ]] || select_workspace_entry_pane
     if [[ "$SESSION_CREATED" == "1" ]]; then
       printf 'Created tmux session: %s\n' "$SESSION"
     else
@@ -1409,8 +1448,12 @@ attach_or_switch() {
     return 0
   fi
 
-  shield_workspace_entry_pane
-  schedule_workspace_entry_pane
+  if [[ "$is_new" == "1" ]]; then
+    shield_workspace_entry_pane
+    schedule_workspace_entry_pane
+  else
+    schedule_workspace_shield_release
+  fi
 
   if [[ -n "${TMUX:-}" ]]; then
     tmux switch-client -t "$SESSION_TARGET"
@@ -2292,6 +2335,9 @@ run_workspace_hook() {
     select-entry)
       select_workspace_entry_pane restore
       ;;
+    release-shield)
+      release_workspace_shield
+      ;;
     reset)
       [[ "$cols" =~ $number_pattern && "$lines" =~ $number_pattern ]] || return 0
       WORKSPACE_COLS="$cols"
@@ -2321,7 +2367,6 @@ open_picked_workspace() {
       SESSION="$PICKED_VALUE"
       SESSION_EXPLICIT=1
       DIR_EXPLICIT=0
-      QUIET_ENTRY=1
       ;;
     dir)
       WORK_DIR="$(resolve_dir "$PICKED_VALUE")"
