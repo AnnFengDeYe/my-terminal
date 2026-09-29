@@ -63,7 +63,7 @@ On startup, it detects the current terminal size and fits the tmux workspace to 
 - Set `WORKSPACE_SESSION_MODE=project` to make `workplace` per-project by default; `workplace --global` then enters the daily workspace.
 - The left side of the status bar names the current workspace and the current window is highlighted; a window that rings the bell is marked with `!`.
 - Change `Alt+0` with `WORKSPACE_PICK_KEY`, or set it to `none` to remove the binding. The key belongs to the whole tmux server and is remembered once set.
-- Switching to a running workspace through the picker leaves its current window and any half-typed input alone.
+- Entering or switching to a running workspace leaves it the way it was: its window, its pane, and anything half typed.
 - When another command named `wp` is installed (WP-CLI, for example), the `wp` alias is not defined; use `workplace --project` instead.
 
 ### 🤖 Agent window
@@ -104,13 +104,15 @@ git diff --staged | wsend -                # read the text from stdin
 wsend "do not commit yet" --no-enter       # paste without pressing Enter
 ```
 
-Only panes that are running an agent receive the text: either the workspace started the agent and it is still running, or the program in front is the configured agent itself. Panes sitting at a shell prompt, in ssh, or in a REPL are skipped, so backticks or `$(...)` inside a prompt are never executed by a shell. A Node-based CLI that you restart by hand after it exited runs as `node` and is not recognised; watch for the skip notice in that case.
+Only panes whose agent holds the terminal receive the text. Panes sitting at a shell prompt, in ssh, or in a REPL are skipped, so backticks or `$(...)` inside a prompt are never executed by a shell; an agent that you quit and started again by hand is recognised as well. Enter is only pressed once the text shows up in the agent: an agent that is asking a question (signing in, trusting a directory, confirming an action, offering an update) does not show pasted text, and Enter would answer for you. Such a pane is reported as `held` and left for you.
+
+**Check that your agents work here.** `./scripts/check_agents.sh` starts the configured agents for real in a tmux server of their own, pastes a short text into each, and reports what happened. It never presses Enter, submits nothing, and closes the agents at the end.
 
 **Know when an agent needs you.** When an agent rings the bell, `2:agent` in the status bar is marked with `!` and changes colour. If your CLI never rings the bell, `export WORKSPACE_AGENT_SILENCE=30` in your shell config: the agent window is marked with `~`, and the terminal bell rings once, after 30 quiet seconds.
 
 ### 🔧 Repair and reset
 
-`workplace` starts or enters the workspace. When entering an existing workspace, it performs a light, non-destructive repair: it restores managed window names, ordering, tmux hooks, and options without deleting unknown windows or stopping running tasks.
+`workplace` starts or enters the workspace. When entering an existing workspace, you are back at the window and pane you left, with anything half typed still there; it also performs a light, non-destructive repair: it restores managed window names, ordering, tmux hooks, and options without deleting unknown windows or stopping running tasks.
 
 If a managed pane was closed, or pane titles / roles were changed, run `workplace --repair` to recreate missing managed panes and repair pane metadata; it does not delete existing panes or unknown windows. Use `workplace --repair-layout` when you also want to refit managed pane layouts. `workplace --reset` deletes and recreates the whole tmux session, which stops any tasks running inside it.
 
@@ -244,6 +246,7 @@ During install, configs under `configs/` are symlinked into the target HOME. Exi
 | Give each agent its own worktree | `workplace --project --agent-worktrees` |
 | List / clean up agent worktrees | `workplace --worktrees`, `workplace --prune-worktrees [--yes]` |
 | Trust the agent config of a project | `workplace --trust` |
+| Check that your agents take a prompt | `./scripts/check_agents.sh` |
 | Non-destructively repair workspace | `workplace --repair` or `./scripts/workspace_layout.sh --repair` |
 | Recreate workspace | `workplace --reset` or `./scripts/workspace_layout.sh --reset` |
 | Open README showcase layout | `./scripts/showcase_layout.sh --reset` |

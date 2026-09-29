@@ -77,6 +77,7 @@ jobs:
           ./scripts/doctor.sh --help
           ./scripts/preview_install.sh --help
           ./scripts/install_command_shims.sh --help
+          ./scripts/check_agents.sh --help
           ./scripts/showcase_layout.sh --help
           ./scripts/workspace_layout.sh --help
           ./scripts/workplace_manual.sh --help

@@ -1476,6 +1476,9 @@ set_tmux_options() {
   tmux set-option -t "$SESSION_TARGET" status-right " %Y-%m-%d %H:%M " >/dev/null
   tmux set-option -t "$SESSION_TARGET" window-size latest >/dev/null 2>&1 || true
   tmux set-window-option -t "$window_id" aggressive-resize on >/dev/null 2>&1 || true
+  # Editors and agent CLIs use focus events to notice that you looked away
+  # or came back; Claude Code asks for them at startup.
+  tmux set-option -s focus-events on >/dev/null 2>&1 || true
   set_workspace_session_metadata
   bind_workspace_keys
   set_workspace_hooks

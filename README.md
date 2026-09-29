@@ -63,7 +63,7 @@ workplace
 - 想让 `workplace` 默认按项目划分，设置 `WORKSPACE_SESSION_MODE=project`；此时用 `workplace --global` 进入日常 workspace。
 - 状态栏左侧显示当前 workspace 的名字，当前窗口高亮；其他窗口响铃时标记 `!`。
 - `Alt+0` 可用 `WORKSPACE_PICK_KEY` 改成别的按键，设为 `none` 则取消绑定。按键属于整个 tmux server，设置一次后会被记住。
-- 用选择器切换到正在运行的 workspace 时，不会改动它当前的窗口和输入内容。
+- 进入或切换到正在运行的 workspace 时，它保持原样：窗口、pane 和输入到一半的内容都不会变。
 - 如果系统里已有名为 `wp` 的命令（例如 WP-CLI），别名 `wp` 不会定义，请直接使用 `workplace --project`。
 
 ### 🤖 Agent 窗口
@@ -104,13 +104,15 @@ git diff --staged | wsend -               # 从标准输入读取
 wsend "先别提交" --no-enter               # 只粘贴，不回车
 ```
 
-只有正在运行 agent 的 pane 会收到文字：要么 agent 是 workspace 启动的且仍在运行，要么前台程序就是配置里的那个 agent。停在 shell 提示符、ssh 或 REPL 的 pane 会被跳过，所以提示词里的反引号或 `$(...)` 不会被 shell 执行。agent 退出后手动重新启动的 Node 类 CLI 以 `node` 进程运行，不会被识别；这种情况请留意跳过提示。
+只有 agent 正占着终端的 pane 会收到文字。停在 shell 提示符、ssh 或 REPL 的 pane 会被跳过，所以提示词里的反引号或 `$(...)` 不会被 shell 执行；agent 退出后手动重新启动的也能识别。文字在 agent 里显示出来之后才会回车：agent 正在提问时（登录、信任目录、确认操作、更新提示），粘贴的文字不会显示，回车就等于替你回答，这种情况会标记为 `held`，留给你自己处理。
+
+**检查本机的 agent 能不能用。** `./scripts/check_agents.sh` 会在独立的 tmux server 里真实启动配置中的 agent，往每个 agent 粘贴一小段文字并报告结果。它不会回车，不提交任何内容，结束时关闭这些 agent。
 
 **知道 agent 何时需要你。** agent 响铃时，状态栏里的 `2:agent` 会标记 `!` 并变色。如果所用的 CLI 不会响铃，可在 shell 配置里 `export WORKSPACE_AGENT_SILENCE=30`：agent 窗口安静 30 秒后标记 `~`，终端同时响铃一次。
 
 ### 🔧 修复与重建
 
-`workplace` 会启动或进入 workspace。进入已有 workspace 时会做轻量、非破坏性 repair：恢复被管理窗口的名称、顺序、tmux hooks 和 options，不会删除未知窗口，也不会终止正在运行的任务。
+`workplace` 会启动或进入 workspace。进入已有 workspace 时，你会回到离开时的窗口和 pane，输入到一半的内容还在；同时会做轻量、非破坏性 repair：恢复被管理窗口的名称、顺序、tmux hooks 和 options，不会删除未知窗口，也不会终止正在运行的任务。
 
 如果某个被管理 pane 被关闭，或 pane title / role 被改乱，可运行 `workplace --repair` 补回缺失的 managed pane 并修复 pane metadata；它不会删除已有 pane 或未知窗口。需要连 managed pane 布局一起重新整理时使用 `workplace --repair-layout`。`workplace --reset` 会删除并重建整个 tmux session，会终止里面正在运行的任务。
 
@@ -244,6 +246,7 @@ Linux 可选 Homebrew：
 | agent 使用独立 worktree | `workplace --project --agent-worktrees` |
 | 查看 / 清理 agent worktree | `workplace --worktrees`、`workplace --prune-worktrees [--yes]` |
 | 信任项目内的 agent 配置 | `workplace --trust` |
+| 检查本机的 agent 能否接收提示词 | `./scripts/check_agents.sh` |
 | 非破坏性修复 workspace | `workplace --repair` 或 `./scripts/workspace_layout.sh --repair` |
 | 重建 workspace | `workplace --reset` 或 `./scripts/workspace_layout.sh --reset` |
 | 打开 README 展示布局 | `./scripts/showcase_layout.sh --reset` |
