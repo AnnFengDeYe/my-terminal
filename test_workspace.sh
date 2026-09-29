@@ -155,8 +155,11 @@ pane_option() {
   tmux display-message -p -t "$1" "#{$2}"
 }
 
+# Everything the pane has printed, with wrapped lines joined. A workspace
+# can be narrow enough to wrap a message and to push its first lines into
+# the history.
 pane_text() {
-  tmux capture-pane -p -t "$1"
+  tmux capture-pane -p -J -S - -t "$1"
 }
 
 pane_state_is() {
