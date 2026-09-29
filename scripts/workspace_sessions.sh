@@ -118,7 +118,7 @@ workspace_managed_session_records() {
   while IFS='|' read -r name attached windows managed kind root; do
     [[ -n "$name" ]] || continue
     if [[ "$managed" != "1" ]]; then
-      printf '%s\n' "$legacy_names" | grep -Fxq -- "$name" || continue
+      [[ $'\n'"$legacy_names"$'\n' == *$'\n'"$name"$'\n'* ]] || continue
     fi
     printf '%s|%s|%s|%s|%s\n' "$name" "$attached" "$windows" "$kind" "$root"
   done < <(
@@ -128,16 +128,21 @@ workspace_managed_session_records() {
   )
 }
 
+# The records are read into a variable before they are searched. Reading
+# them straight from the function and stopping at the first match would
+# close the pipe while the function is still writing to it.
 workspace_session_is_managed() {
   local attached
   local kind
   local name
+  local records
   local root
   local windows
 
+  records="$(workspace_managed_session_records)"
   while IFS='|' read -r name attached windows kind root; do
     [[ "$name" == "$1" ]] && return 0
-  done < <(workspace_managed_session_records)
+  done <<< "$records"
 
   return 1
 }
@@ -149,15 +154,17 @@ workspace_find_session_by_root() {
   local attached
   local kind
   local name
+  local records
   local root
   local windows
 
+  records="$(workspace_managed_session_records)"
   while IFS='|' read -r name attached windows kind root; do
     if [[ "$kind" == "project" && "$root" == "$1" ]]; then
       printf '%s\n' "$name"
       return 0
     fi
-  done < <(workspace_managed_session_records)
+  done <<< "$records"
 
   return 1
 }
