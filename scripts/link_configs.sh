@@ -172,6 +172,47 @@ link_one() {
   handle_existing_target "$source_canon" "$target"
 }
 
+# The repository gitconfig carries no identity; it includes ~/.gitconfig.local
+# instead. Seed that file from the config about to be replaced, so name,
+# email, signing, and credential settings keep working after the link.
+preserve_local_gitconfig() {
+  local link_canon
+  local local_config="$TARGET_HOME/.gitconfig.local"
+  local source="$REPO_ROOT/configs/git/gitconfig"
+  local source_canon
+  local target="$TARGET_HOME/.gitconfig"
+
+  [[ "$DO_BACKUP" == "1" ]] || return 0
+  [[ -f "$source" && -f "$target" ]] || return 0
+  grep -Fq '.gitconfig.local' "$source" || return 0
+
+  if [[ -L "$target" ]]; then
+    source_canon="$(canonical_existing_path "$source")"
+    link_canon="$(resolve_link_target "$target" 2>/dev/null || true)"
+    [[ "$link_canon" != "$source_canon" ]] || return 0
+  fi
+
+  if [[ -e "$local_config" || -L "$local_config" ]]; then
+    log "gitconfig: keeping existing $local_config"
+    return 0
+  fi
+
+  if grep -Fq '.gitconfig.local' "$target"; then
+    log "gitconfig: $target already includes .gitconfig.local; not copying it onto itself"
+    return 0
+  fi
+
+  ensure_target_under_home "$local_config"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "gitconfig: would copy $target -> $local_config to keep your identity"
+    return 0
+  fi
+
+  [[ "$YES" == "1" ]] || die_link "refusing to write $local_config without --yes"
+  cp -p "$target" "$local_config"
+  log "gitconfig: copied $target -> $local_config to keep your identity"
+}
+
 main() {
   parse_args "$@"
   ensure_safe_home
@@ -200,6 +241,7 @@ main() {
   link_one "configs/yazi" ".config/yazi" || failures=$((failures + 1))
   link_one "configs/lazygit/config.yml" ".config/lazygit/config.yml" || failures=$((failures + 1))
   link_one "configs/nvim" ".config/nvim" || failures=$((failures + 1))
+  preserve_local_gitconfig
   link_one "configs/git/gitconfig" ".gitconfig" || failures=$((failures + 1))
 
   if [[ "$failures" -gt 0 ]]; then

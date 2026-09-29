@@ -13,7 +13,7 @@ LANGUAGE="zh"
 # shellcheck source=scripts/common.sh
 . "$SCRIPT_DIR/common.sh"
 
-PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/snap/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+PATH="$(command_search_path "$TARGET_HOME")"
 export PATH
 
 usage() {
@@ -95,6 +95,22 @@ syntax_highlighting_state() {
     else
       printf '  [missing]   zsh-syntax-highlighting\n'
     fi
+  fi
+}
+
+# Prints a line for each renamed Debian-family binary that install would
+# link to its upstream name. Prints nothing when no link is needed.
+shim_state() {
+  local alt="$2"
+  local name="$1"
+
+  command -v "$name" >/dev/null 2>&1 && return 0
+  command -v "$alt" >/dev/null 2>&1 || return 0
+
+  if is_zh; then
+    printf '  [将链接] ~/.local/bin/%s -> %s\n' "$name" "$alt"
+  else
+    printf '  [will link] ~/.local/bin/%s -> %s\n' "$name" "$alt"
   fi
 }
 
@@ -211,6 +227,7 @@ main() {
   local os
   local pm
   local ghostty_source
+  local shims
   os="$("$SCRIPT_DIR/detect_os.sh")"
   pm="$(detect_default_pm "$os")"
   ghostty_source="$(select_ghostty_source "$REPO_ROOT" "$os")"
@@ -246,6 +263,16 @@ main() {
   tool_state "neovim" nvim
   tool_state "yazi" yazi
   tool_state "ya" ya
+
+  shims="$(shim_state bat batcat; shim_state fd fdfind)"
+  if [[ -n "$shims" ]]; then
+    if is_zh; then
+      printf '\n命令名兼容:\n'
+    else
+      printf '\nCommand names:\n'
+    fi
+    printf '%s\n' "$shims"
+  fi
 
   if is_zh; then
     printf '\n可选 GUI:\n'

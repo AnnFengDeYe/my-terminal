@@ -308,4 +308,132 @@ grep -q '^family = "JetBrainsMono Nerd Font Mono"$' "$TMP_HOME/.config/alacritty
 grep -q '^keep existing temp$' "$TMP_HOME/.config/alacritty/alacritty.toml.tmp" || fail "Alacritty existing temp file should not be overwritten"
 printf 'ok: Ghostty, Kitty, and Alacritty font configs updated\n\n'
 
+printf 'Test 8: linking keeps the git identity in ~/.gitconfig.local\n'
+git_home="$TMP_HOME/git-identity"
+mkdir -p "$git_home"
+printf '[user]\n\tname = Test Person\n\temail = test.person@example.invalid\n' > "$git_home/.gitconfig"
+
+git_identity() {
+  env -u XDG_CONFIG_HOME -u GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM=1 HOME="$git_home" git config --global --includes --get "$1"
+}
+
+if grep -q '<YOUR_' "$REPO_ROOT/configs/git/gitconfig"; then
+  fail "the linked gitconfig must not carry a placeholder identity"
+fi
+HOME="$git_home" TEST_HOME="$git_home" "$REPO_ROOT/install.sh" --dry-run --link-only --backup >/dev/null
+assert_missing "$git_home/.gitconfig.local"
+HOME="$git_home" TEST_HOME="$git_home" "$REPO_ROOT/install.sh" --link-only --backup --yes >/dev/null
+assert_symlink "$git_home/.gitconfig"
+[[ -f "$git_home/.gitconfig.local" && ! -L "$git_home/.gitconfig.local" ]] || fail "expected ~/.gitconfig.local to be created"
+[[ "$(git_identity user.name)" == "Test Person" ]] || fail "git user.name was lost by linking"
+[[ "$(git_identity user.email)" == "test.person@example.invalid" ]] || fail "git user.email was lost by linking"
+
+printf '# edited by hand\n' >> "$git_home/.gitconfig.local"
+rm "$git_home/.gitconfig"
+printf '[user]\n\tname = Someone Else\n' > "$git_home/.gitconfig"
+HOME="$git_home" TEST_HOME="$git_home" "$REPO_ROOT/install.sh" --link-only --backup --yes >/dev/null
+grep -q '^# edited by hand$' "$git_home/.gitconfig.local" || fail "an existing ~/.gitconfig.local was overwritten"
+[[ "$(git_identity user.name)" == "Test Person" ]] || fail "an existing ~/.gitconfig.local should keep winning"
+printf 'ok: identity moved to ~/.gitconfig.local and an existing one is kept\n\n'
+
+printf 'Test 9: renamed Debian binaries are linked to their upstream names\n'
+shim_home="$TMP_HOME/shims"
+shim_bin="$TMP_HOME/shim-bin"
+shim_path="$shim_bin:/usr/bin:/bin"
+mkdir -p "$shim_home" "$shim_bin"
+for cmd in batcat fdfind; do
+  printf '#!/usr/bin/env sh\nexit 0\n' > "$shim_bin/$cmd"
+  chmod +x "$shim_bin/$cmd"
+done
+
+run_shims() {
+  PATH="$shim_path" MY_TERMINAL_EXTRA_PATH="" HOME="$shim_home" TEST_HOME="$shim_home" \
+    "$REPO_ROOT/scripts/install_command_shims.sh" "$@"
+}
+
+run_shims --dry-run >/dev/null
+assert_missing "$shim_home/.local"
+run_shims --yes >/dev/null
+run_shims --yes >/dev/null
+for pair in bat:batcat fd:fdfind; do
+  shim_name="${pair%%:*}"
+  shim_alt="${pair#*:}"
+  if PATH="/usr/bin:/bin" command -v "$shim_name" >/dev/null 2>&1; then
+    assert_missing "$shim_home/.local/bin/$shim_name"
+  else
+    assert_symlink "$shim_home/.local/bin/$shim_name"
+    [[ "$(readlink "$shim_home/.local/bin/$shim_name")" == "$shim_bin/$shim_alt" ]] || fail "$shim_name should point to $shim_alt"
+  fi
+done
+
+shim_keep_home="$TMP_HOME/shims-keep"
+mkdir -p "$shim_keep_home/.local/bin"
+printf 'not a program\n' > "$shim_keep_home/.local/bin/bat"
+PATH="$shim_path" MY_TERMINAL_EXTRA_PATH="" HOME="$shim_keep_home" TEST_HOME="$shim_keep_home" \
+  "$REPO_ROOT/scripts/install_command_shims.sh" --yes >/dev/null
+[[ -f "$shim_keep_home/.local/bin/bat" && ! -L "$shim_keep_home/.local/bin/bat" ]] || fail "an existing file was replaced by a shim"
+grep -q '^not a program$' "$shim_keep_home/.local/bin/bat" || fail "an existing file was modified by a shim"
+printf 'ok: shims created once, existing files left alone\n\n'
+
+printf 'Test 9b: doctor explains renamed binaries and a missing git identity\n'
+doctor_home="$TMP_HOME/doctor-renamed"
+doctor_out="$TMP_HOME/doctor-renamed.out"
+make_fake_doctor_tools "$doctor_home"
+mv "$doctor_home/.local/bin/bat" "$doctor_home/.local/bin/batcat"
+mv "$doctor_home/.local/bin/fd" "$doctor_home/.local/bin/fdfind"
+PATH="/usr/bin:/bin" MY_TERMINAL_EXTRA_PATH="" HOME="$doctor_home" TEST_HOME="$doctor_home" \
+  "$REPO_ROOT/scripts/doctor.sh" >"$doctor_out" 2>&1 || fail "renamed binaries should not fail doctor"
+if ! PATH="/usr/bin:/bin" command -v bat >/dev/null 2>&1; then
+  grep -q 'warning: bat is only available as batcat' "$doctor_out" || fail "expected renamed bat warning"
+fi
+if ! PATH="/usr/bin:/bin" command -v fd >/dev/null 2>&1; then
+  grep -q 'warning: fd is only available as fdfind' "$doctor_out" || fail "expected renamed fd warning"
+fi
+grep -q 'warning: git identity is not set' "$doctor_out" || fail "expected missing git identity warning"
+grep -q 'Doctor summary: 0 failure(s)' "$doctor_out" || fail "renamed binaries should be warnings only"
+
+printf '[user]\n\tname = <YOUR_NAME>\n\temail = <YOUR_EMAIL>\n[core]\n\teditor = missing-editor-for-tests -w\n' > "$doctor_home/.gitconfig"
+PATH="/usr/bin:/bin" MY_TERMINAL_EXTRA_PATH="" HOME="$doctor_home" TEST_HOME="$doctor_home" \
+  "$REPO_ROOT/scripts/doctor.sh" >"$doctor_out" 2>&1 || fail "placeholder identity should not fail doctor"
+grep -q 'warning: git identity is still a placeholder' "$doctor_out" || fail "expected placeholder identity warning"
+grep -q 'warning: git core.editor is .* but missing-editor-for-tests is not installed' "$doctor_out" || fail "expected missing git editor warning"
+
+# An editor whose path contains spaces is quoted in the git config.
+mkdir -p "$doctor_home/My Apps"
+printf '#!/usr/bin/env sh\nexit 0\n' > "$doctor_home/My Apps/edit"
+chmod +x "$doctor_home/My Apps/edit"
+printf "[user]\n\tname = Test Person\n\temail = test.person@example.invalid\n[core]\n\teditor = '%s' --wait\n" "$doctor_home/My Apps/edit" > "$doctor_home/.gitconfig"
+PATH="/usr/bin:/bin" MY_TERMINAL_EXTRA_PATH="" HOME="$doctor_home" TEST_HOME="$doctor_home" \
+  "$REPO_ROOT/scripts/doctor.sh" >"$doctor_out" 2>&1 || fail "a quoted editor path should not fail doctor"
+grep -q 'ok: git identity is set' "$doctor_out" || fail "expected the git identity to be recognised"
+grep -q "ok: git editor $doctor_home/My Apps/edit found" "$doctor_out" || fail "expected the quoted git editor to be found: $(grep editor "$doctor_out")"
+printf 'ok: doctor points at the fix\n\n'
+
+printf 'Test 12: importing a gitconfig never brings an identity into the repository\n'
+import_repo="$TMP_HOME/import-repo"
+import_home="$TMP_HOME/import-home"
+mkdir -p "$import_repo" "$import_home"
+cp -R "$REPO_ROOT/scripts" "$REPO_ROOT/configs" "$import_repo/"
+printf '[user]\n\tname = Real Person\n\temail = real.person@example.invalid\n\tsigningkey = ABCDEF0123\n[push]\n\tdefault = current\n' > "$import_home/.gitconfig"
+HOME="$import_home" USER="import-test-user" "$import_repo/scripts/import_existing_configs.sh" --yes --sanitize --overwrite-repo-copy >/dev/null
+imported_gitconfig="$import_repo/configs/git/gitconfig"
+if grep -Eiq 'Real Person|real\.person|ABCDEF0123|<YOUR_' "$imported_gitconfig"; then
+  fail "imported gitconfig still carries an identity: $(cat "$imported_gitconfig")"
+fi
+if grep -Eiq '^[[:space:]]*(name|email|signingkey)[[:space:]]*=' "$imported_gitconfig"; then
+  fail "imported gitconfig still has identity keys"
+fi
+grep -q 'default = current' "$imported_gitconfig" || fail "imported gitconfig lost a non-identity setting"
+grep -q 'path = ~/.gitconfig.local' "$imported_gitconfig" || fail "imported gitconfig should include ~/.gitconfig.local"
+grep -q 'Real Person' "$import_home/.gitconfig" || fail "import must not modify the source config"
+
+# A config without a final newline must not swallow the include section.
+printf '[user]\n\tname = Real Person\n[push]\n\tdefault = current' > "$import_home/.gitconfig"
+HOME="$import_home" USER="import-test-user" "$import_repo/scripts/import_existing_configs.sh" --yes --sanitize --overwrite-repo-copy >/dev/null
+[[ "$(git config --file "$imported_gitconfig" --get push.default)" == "current" ]] || fail "import damaged the last setting: $(cat "$imported_gitconfig")"
+# shellcheck disable=SC2088 # git stores the path with a literal "~"
+expected_include="~/.gitconfig.local"
+[[ "$(git config --file "$imported_gitconfig" --get include.path)" == "$expected_include" ]] || fail "import lost the include: $(cat "$imported_gitconfig")"
+printf 'ok: identity stripped from the repository copy, source untouched\n\n'
+
 printf 'All tests passed. No package installation commands were executed.\n'

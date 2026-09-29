@@ -1,7 +1,15 @@
+# Shared Git defaults from my-terminal. This file is symlinked to ~/.gitconfig.
+#
+# It deliberately carries no identity. Your name, email, signing key, and
+# credential helper belong in ~/.gitconfig.local, which is included last and
+# overrides anything set here:
+#
+#   git config --file ~/.gitconfig.local user.name  "Your Name"
+#   git config --file ~/.gitconfig.local user.email "<your email>"
+#
+# `git config --global` follows the symlink and edits this repository file,
+# so prefer `--file ~/.gitconfig.local` for anything personal.
 [push]
 	default = simple
-[user]
-	email = <YOUR_EMAIL>
-	name = <YOUR_NAME>
-[core]
-	editor = subl -n -w
+[include]
+	path = ~/.gitconfig.local

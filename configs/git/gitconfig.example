@@ -1,7 +1,14 @@
-[push]
-	default = simple
+# Template for ~/.gitconfig.local, the personal half of the Git setup.
+# configs/git/gitconfig includes that file, so nothing here is ever committed
+# to this repository:
+#
+#   cp configs/git/gitconfig.example ~/.gitconfig.local
+#
+# The installer creates ~/.gitconfig.local for you from your previous
+# ~/.gitconfig when it replaces that file with the repository symlink.
 [user]
-	email = <YOUR_EMAIL>
 	name = <YOUR_NAME>
-[core]
-	editor = subl -n -w
+	email = <YOUR_EMAIL>
+# Git uses $VISUAL / $EDITOR (nvim in this kit) unless you set an editor:
+# [core]
+#	editor = nvim

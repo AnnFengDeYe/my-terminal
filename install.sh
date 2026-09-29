@@ -199,6 +199,12 @@ main() {
   printf '\nConfig link step:\n'
   "$REPO_ROOT/scripts/link_configs.sh" "${link_args[@]}"
 
+  local shim_args=()
+  [[ "$DRY_RUN" == "1" ]] && shim_args+=("--dry-run")
+  [[ "$YES" == "1" ]] && shim_args+=("--yes")
+  printf '\nCommand name step:\n'
+  "$REPO_ROOT/scripts/install_command_shims.sh" "${shim_args[@]}"
+
   if [[ "$SET_DEFAULT_SHELL" == "1" ]]; then
     local shell_args=()
     [[ "$DRY_RUN" == "1" ]] && shell_args+=("--dry-run")
