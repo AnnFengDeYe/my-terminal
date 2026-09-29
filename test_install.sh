@@ -409,6 +409,66 @@ grep -q 'ok: git identity is set' "$doctor_out" || fail "expected the git identi
 grep -q "ok: git editor $doctor_home/My Apps/edit found" "$doctor_out" || fail "expected the quoted git editor to be found: $(grep editor "$doctor_out")"
 printf 'ok: doctor points at the fix\n\n'
 
+printf 'Test 10: the manual matches the zshrc and notices drift\n'
+manual="$REPO_ROOT/scripts/workplace_manual.sh"
+"$manual" --check >/dev/null || fail "workplace manual is out of date; run scripts/workplace_manual.sh --sync"
+
+manual_copy="$TMP_HOME/manual-copy.tsv"
+zshrc_copy="$TMP_HOME/zshrc-copy"
+cp "$REPO_ROOT/configs/zsh/workplace_manual.tsv" "$manual_copy"
+{
+  printf '# one more line on top moves every definition down\n'
+  cat "$REPO_ROOT/configs/zsh/zshrc"
+} > "$zshrc_copy"
+if "$manual" --config "$manual_copy" --zshrc "$zshrc_copy" --check >"$TMP_HOME/manual-check.out"; then
+  fail "manual check should notice moved definitions"
+fi
+grep -q '^line: workplace is documented at ' "$TMP_HOME/manual-check.out" || fail "expected a line drift report"
+"$manual" --config "$manual_copy" --zshrc "$zshrc_copy" --sync 2>/dev/null
+"$manual" --config "$manual_copy" --zshrc "$zshrc_copy" --check >/dev/null || fail "manual sync should fix line drift"
+[[ "$(wc -l < "$manual_copy")" == "$(wc -l < "$REPO_ROOT/configs/zsh/workplace_manual.tsv")" ]] || fail "manual sync changed the number of rows"
+
+printf 'alias brandnew="true"\n' >> "$zshrc_copy"
+printf '_private_helper() {\n  true\n}\n' >> "$zshrc_copy"
+if "$manual" --config "$manual_copy" --zshrc "$zshrc_copy" --check >"$TMP_HOME/manual-check.out"; then
+  fail "manual check should notice an undocumented alias"
+fi
+grep -q '^undocumented: alias brandnew ' "$TMP_HOME/manual-check.out" || fail "expected an undocumented alias report"
+if grep -q '_private_helper' "$TMP_HOME/manual-check.out"; then
+  fail "internal helpers should not need a manual entry"
+fi
+
+grep -v '^workplace	' "$REPO_ROOT/configs/zsh/workplace_manual.tsv" > "$manual_copy"
+printf 'ghost\talias\ttest\ttrue\tNo longer defined.\tghost\tconfigs/zsh/zshrc:1\n' >> "$manual_copy"
+if "$manual" --config "$manual_copy" --check >"$TMP_HOME/manual-check.out"; then
+  fail "manual check should notice missing and stale entries"
+fi
+grep -q '^undocumented: function workplace ' "$TMP_HOME/manual-check.out" || fail "expected an undocumented function report"
+grep -q '^stale: ghost is documented ' "$TMP_HOME/manual-check.out" || fail "expected a stale entry report"
+printf 'ok: manual check covers drift, missing, and stale entries\n\n'
+
+printf 'Test 11: zsh configs load in a clean HOME\n'
+if command -v zsh >/dev/null 2>&1; then
+  zsh_home="$TMP_HOME/zsh-home"
+  mkdir -p "$zsh_home"
+  zsh_out="$(
+    HOME="$zsh_home" MY_TERMINAL_HOME="" zsh -f -c "
+      source '$REPO_ROOT/configs/zsh/zshenv' &&
+      source '$REPO_ROOT/configs/zsh/zprofile' &&
+      source '$REPO_ROOT/configs/zsh/zshrc' &&
+      print -r -- \"workplace=\$(whence -w workplace) wp=\$(whence -w wp)\"
+    " 2>"$TMP_HOME/zsh-load.err" </dev/null
+  )" || fail "zsh configs failed to load: $(cat "$TMP_HOME/zsh-load.err")"
+  [[ "$zsh_out" == *"workplace=workplace: function"* ]] || fail "zshrc should define workplace, got: $zsh_out"
+  [[ "$zsh_out" == *"wp=wp: alias"* ]] || fail "zshrc should define wp, got: $zsh_out"
+  if grep -Eiq 'parse error|command not found|bad substitution' "$TMP_HOME/zsh-load.err"; then
+    fail "zsh configs printed errors: $(cat "$TMP_HOME/zsh-load.err")"
+  fi
+  printf 'ok: zshenv, zprofile, and zshrc load without errors\n\n'
+else
+  printf 'skip: zsh is not installed\n\n'
+fi
+
 printf 'Test 12: importing a gitconfig never brings an identity into the repository\n'
 import_repo="$TMP_HOME/import-repo"
 import_home="$TMP_HOME/import-home"
