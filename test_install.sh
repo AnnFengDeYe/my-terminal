@@ -451,19 +451,28 @@ printf 'Test 11: zsh configs load in a clean HOME\n'
 if command -v zsh >/dev/null 2>&1; then
   zsh_home="$TMP_HOME/zsh-home"
   mkdir -p "$zsh_home"
-  zsh_out="$(
-    HOME="$zsh_home" MY_TERMINAL_HOME="" zsh -f -c "
-      source '$REPO_ROOT/configs/zsh/zshenv' &&
-      source '$REPO_ROOT/configs/zsh/zprofile' &&
-      source '$REPO_ROOT/configs/zsh/zshrc' &&
-      print -r -- \"workplace=\$(whence -w workplace) wp=\$(whence -w wp)\"
-    " 2>"$TMP_HOME/zsh-load.err" </dev/null
-  )" || fail "zsh configs failed to load: $(cat "$TMP_HOME/zsh-load.err")"
-  [[ "$zsh_out" == *"workplace=workplace: function"* ]] || fail "zshrc should define workplace, got: $zsh_out"
-  [[ "$zsh_out" == *"wp=wp: alias"* ]] || fail "zshrc should define wp, got: $zsh_out"
-  if grep -Eiq 'parse error|command not found|bad substitution' "$TMP_HOME/zsh-load.err"; then
-    fail "zsh configs printed errors: $(cat "$TMP_HOME/zsh-load.err")"
-  fi
+
+  # Loaded once as the machine is, and once as a machine without Homebrew
+  # packages: every optional tool missing must still leave a usable shell.
+  for zsh_prelude in ":" "brew() { print -r -- /nonexistent }"; do
+    zsh_out="$(
+      HOME="$zsh_home" MY_TERMINAL_HOME="" zsh -f -c "
+        $zsh_prelude
+        source '$REPO_ROOT/configs/zsh/zshenv'
+        source '$REPO_ROOT/configs/zsh/zprofile'
+        source '$REPO_ROOT/configs/zsh/zshrc'
+        print -r -- \"status=\$? workplace=\$(whence -w workplace) wpick=\$(whence -w wpick)\"
+      " 2>"$TMP_HOME/zsh-load.err" </dev/null
+    )" || fail "zsh configs failed to load: $(cat "$TMP_HOME/zsh-load.err")"
+    # A shell whose startup files end in a failure shows its first prompt as
+    # if a command had failed.
+    [[ "$zsh_out" == "status=0 "* ]] || fail "zshrc should end successfully, got: $zsh_out"
+    [[ "$zsh_out" == *"workplace=workplace: function"* ]] || fail "zshrc should define workplace, got: $zsh_out"
+    [[ "$zsh_out" == *"wpick=wpick: alias"* ]] || fail "zshrc should define wpick, got: $zsh_out"
+    if grep -Eiq 'parse error|command not found|bad substitution' "$TMP_HOME/zsh-load.err"; then
+      fail "zsh configs printed errors: $(cat "$TMP_HOME/zsh-load.err")"
+    fi
+  done
   printf 'ok: zshenv, zprofile, and zshrc load without errors\n\n'
 else
   printf 'skip: zsh is not installed\n\n'

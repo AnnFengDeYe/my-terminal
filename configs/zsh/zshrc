@@ -443,4 +443,7 @@ elif [ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]; then
   ZSH_HIGHLIGHT_PATH="/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 fi
 
-[ -n "$ZSH_HIGHLIGHT_PATH" ] && [ -f "$ZSH_HIGHLIGHT_PATH" ] && source "$ZSH_HIGHLIGHT_PATH"
+# 用 if 而不是 &&：插件未安装时，zshrc 也以成功状态结束，首个提示符不会显示为出错
+if [ -n "${ZSH_HIGHLIGHT_PATH:-}" ] && [ -f "$ZSH_HIGHLIGHT_PATH" ]; then
+  source "$ZSH_HIGHLIGHT_PATH"
+fi
