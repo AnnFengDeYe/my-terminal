@@ -107,6 +107,14 @@ if [ -n "${MY_TERMINAL_HOME:-}" ] && [ -x "$MY_TERMINAL_HOME/scripts/workspace_l
   workplace() {
     "$MY_TERMINAL_HOME/scripts/workspace_layout.sh" "$@"
   }
+
+  # wp 也是 WP-CLI 的命令名；已安装时不覆盖它，改用 workplace --project
+  if ! command -v wp >/dev/null 2>&1; then
+    alias wp="workplace --project"  # 进入当前项目自己的 workspace
+  fi
+  alias wpick="workplace --pick"    # 选择已有 workspace，或为某个项目新建
+  alias wls="workplace --sessions"  # 列出正在运行的 workspace
+  alias wsend="workplace --send"    # 把同一条提示词发给所有 agent
 fi
 
 
@@ -168,6 +176,36 @@ fi
 # 自动补全
 autoload -Uz compinit
 compinit
+
+# workplace 参数补全
+if (( $+functions[workplace] && $+functions[compdef] )); then
+  _workplace() {
+    local -a sessions
+    sessions=(${(f)"$(tmux list-sessions -F '#{session_name}' 2>/dev/null)"})
+
+    _arguments \
+      '(-p --project --global)'{-p,--project}'[use one workspace per project]' \
+      '(-p --project)--global[use the shared daily workspace]' \
+      '--dir[workspace directory]:directory:_files -/' \
+      '--session[tmux session name]:session:compadd -a sessions' \
+      '--repair[recreate missing panes without stopping tasks]' \
+      '--repair-layout[also reset managed pane layouts]' \
+      '--reset[kill and recreate the workspace]' \
+      '--no-attach[create the workspace without attaching]' \
+      '--sessions[list running workspaces]' \
+      '--pick[choose a workspace or open a project as one]' \
+      '--send[paste text into every running agent]:text:' \
+      '--to[limit --send to these roles or titles]:roles:' \
+      '--no-enter[with --send, do not press Enter]' \
+      '--agent-worktrees[run each agent in its own git worktree]' \
+      '--worktrees[list agent worktrees]' \
+      '--prune-worktrees[remove agent worktrees that are safe to lose]' \
+      '--yes[apply --prune-worktrees]' \
+      '--trust[trust the agents.tsv of this project]' \
+      '(-h --help)'{-h,--help}'[show help]'
+  }
+  compdef _workplace workplace
+fi
 
 
 # ==========================================

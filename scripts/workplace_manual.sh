@@ -4,11 +4,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 CONFIG_FILE="${WORKPLACE_MANUAL_CONFIG:-$REPO_ROOT/configs/zsh/workplace_manual.tsv}"
+ZSHRC_FILE="$REPO_ROOT/configs/zsh/zshrc"
+ZSHRC_SOURCE="configs/zsh/zshrc"
 COLOR_MODE="auto"
 
 usage() {
   cat <<'EOF'
 Usage: scripts/workplace_manual.sh [--config FILE] [--color auto|always|never] [--list] [--query TEXT] [--show NAME] [--interactive]
+       scripts/workplace_manual.sh [--config FILE] [--zshrc FILE] --check | --sync
 
 Query the workplace alias/function manual.
 
@@ -19,6 +22,11 @@ Options:
   --query TEXT    Search command name, type, group, command, description, usage, and source.
   --show NAME     Print detailed documentation for one command.
   --interactive   Open an fzf-powered browser when fzf is available; otherwise use a simple prompt.
+  --check         Compare the manual with the aliases and functions defined in
+                  the zshrc. Fails when a command is undocumented, a documented
+                  command no longer exists, or a type or line number is wrong.
+  --sync          Rewrite the line numbers in the manual to match the zshrc.
+  --zshrc FILE    Check against FILE. Defaults to configs/zsh/zshrc.
   --help, -h      Show this help.
 EOF
 }
@@ -26,10 +34,6 @@ EOF
 die() {
   printf 'ERROR: %s\n' "$*" >&2
   exit 1
-}
-
-shell_quote() {
-  printf '%q' "$1"
 }
 
 ensure_config() {
@@ -266,6 +270,141 @@ fzf_lines() {
   manual_rows "" 0 | columnize_manual_rows | colorize_manual_columns always
 }
 
+# Prints "name<TAB>type<TAB>line" for each alias and function the zshrc
+# defines. Names starting with "_" are internal helpers and need no entry.
+zshrc_definitions() {
+  [[ -f "$ZSHRC_FILE" ]] || die "zshrc not found: $ZSHRC_FILE"
+
+  awk '
+    function emit(name, type) {
+      if (name ~ /^_/ || (name in seen)) {
+        return
+      }
+      seen[name] = 1
+      printf "%s\t%s\t%s\n", name, type, NR
+    }
+    match($0, /^[[:space:]]*alias[[:space:]]+[A-Za-z0-9_.-]+=/) {
+      name = substr($0, RSTART, RLENGTH)
+      sub(/^[[:space:]]*alias[[:space:]]+/, "", name)
+      sub(/=$/, "", name)
+      emit(name, "alias")
+      next
+    }
+    match($0, /^[[:space:]]*[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*[(][)][[:space:]]*[{]/) {
+      name = substr($0, RSTART, RLENGTH)
+      sub(/^[[:space:]]*/, "", name)
+      sub(/[[:space:]]*[(][)].*$/, "", name)
+      emit(name, "function")
+    }
+  ' "$ZSHRC_FILE"
+}
+
+# Compares the manual with the zshrc. With mode "sync", prints the manual
+# with corrected line numbers on stdout and the findings on stderr.
+manual_audit() {
+  local mode="$1"
+
+  ensure_config
+  awk -F '\t' -v OFS='\t' -v mode="$mode" -v source="$ZSHRC_SOURCE" '
+    function report(text) {
+      if (mode == "sync") {
+        print text > "/dev/stderr"
+      } else {
+        print text
+      }
+    }
+    FNR == NR {
+      def_type[$1] = $2
+      def_line[$1] = $3
+      def_order[++defs] = $1
+      next
+    }
+    /^[[:space:]]*#/ || NF == 0 {
+      if (mode == "sync") {
+        print
+      }
+      next
+    }
+    {
+      file = $7
+      line = ""
+      if (match(file, /:[0-9]+$/)) {
+        line = substr(file, RSTART + 1)
+        file = substr(file, 1, RSTART - 1)
+      }
+
+      if (file == source) {
+        documented[$1] = 1
+        entries++
+        if (!($1 in def_type)) {
+          report("stale: " $1 " is documented but " source " does not define it")
+          problems++
+        } else {
+          if ($2 != def_type[$1]) {
+            report("type: " $1 " is documented as " $2 " but defined as " def_type[$1])
+            problems++
+          }
+          if (line != def_line[$1]) {
+            if (mode == "sync") {
+              $7 = source ":" def_line[$1]
+              fixed++
+            } else {
+              report("line: " $1 " is documented at " source ":" line " but defined at line " def_line[$1])
+              problems++
+              drifted++
+            }
+          }
+        }
+      }
+
+      if (mode == "sync") {
+        print
+      }
+    }
+    END {
+      for (i = 1; i <= defs; i++) {
+        name = def_order[i]
+        if (!(name in documented)) {
+          report("undocumented: " def_type[name] " " name " (" source ":" def_line[name] ") has no manual entry")
+          problems++
+        }
+      }
+
+      if (mode == "sync") {
+        report("manual: updated " (fixed + 0) " line number(s)")
+      } else if (problems == 0) {
+        report("manual: ok, " (entries + 0) " entries match " source)
+      } else if (drifted > 0) {
+        report("manual: " problems " problem(s); fix line numbers with --sync")
+      } else {
+        report("manual: " problems " problem(s)")
+      }
+
+      exit (problems > 0) ? 1 : 0
+    }
+  ' <(zshrc_definitions) "$CONFIG_FILE"
+}
+
+check_manual() {
+  manual_audit check
+}
+
+sync_manual() {
+  local status=0
+  local tmp
+
+  ensure_config
+  tmp="$(mktemp "${TMPDIR:-/tmp}/workplace-manual.XXXXXX")"
+  manual_audit sync > "$tmp" || status=$?
+
+  if [[ -s "$tmp" ]]; then
+    cat "$tmp" > "$CONFIG_FILE"
+  fi
+  rm -f "$tmp"
+
+  return "$status"
+}
+
 interactive_manual() {
   local fzf_args
   local name
@@ -276,7 +415,13 @@ interactive_manual() {
   ensure_config
 
   if command -v fzf >/dev/null 2>&1; then
-    preview_cmd="WORKPLACE_MANUAL_CONFIG=$(shell_quote "$CONFIG_FILE") $(shell_quote "$SCRIPT_DIR/workplace_manual.sh") --color always --show {1}"
+    # fzf hands the preview to $SHELL, which may not be a POSIX shell. The
+    # command is a constant that passes everything on to sh; both paths
+    # travel in the environment, so neither is parsed as code.
+    export WORKPLACE_MANUAL_CONFIG="$CONFIG_FILE"
+    export WORKPLACE_MANUAL_SCRIPT="$SCRIPT_DIR/workplace_manual.sh"
+    # shellcheck disable=SC2016 # expanded by the preview shell, not here
+    preview_cmd='/bin/sh -c '"'"'"$WORKPLACE_MANUAL_SCRIPT" --color always --show "$1"'"'"' sh {1}'
     fzf_args=(
       --ansi
       --prompt='manual> '
@@ -353,6 +498,19 @@ main() {
         mode="interactive"
         shift
         ;;
+      --check)
+        mode="check"
+        shift
+        ;;
+      --sync)
+        mode="sync"
+        shift
+        ;;
+      --zshrc)
+        [[ $# -ge 2 ]] || die "--zshrc requires a file"
+        ZSHRC_FILE="$2"
+        shift 2
+        ;;
       --help|-h)
         usage
         exit 0
@@ -368,6 +526,8 @@ main() {
     query) query_table "$value" ;;
     show) show_entry "$value" ;;
     interactive) interactive_manual ;;
+    check) check_manual ;;
+    sync) sync_manual ;;
     *) die "unknown mode: $mode" ;;
   esac
 }
