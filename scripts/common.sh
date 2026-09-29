@@ -12,6 +12,16 @@ detect_default_pm() {
   esac
 }
 
+# PATH as the linked zshrc will see it: user bin directories first, then the
+# package manager prefixes, then whatever the caller already has.
+# MY_TERMINAL_EXTRA_PATH replaces the package manager prefixes.
+command_search_path() {
+  local extra="${MY_TERMINAL_EXTRA_PATH-/snap/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin}"
+  local target_home="$1"
+
+  printf '%s\n' "$target_home/.local/bin:$target_home/.cargo/bin:${extra:+$extra:}$PATH"
+}
+
 find_zsh_syntax_highlighting() {
   local brew_prefix=""
   local candidate

@@ -12,7 +12,7 @@ TARGET_HOME="${TEST_HOME:-$HOME}"
 # shellcheck source=scripts/common.sh
 . "$SCRIPT_DIR/common.sh"
 
-PATH="$TARGET_HOME/.local/bin:$TARGET_HOME/.cargo/bin:/snap/bin:/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+PATH="$(command_search_path "$TARGET_HOME")"
 export PATH
 
 FAILURES=0
@@ -90,19 +90,89 @@ check_cmd() {
   fi
 }
 
-check_any_cmd() {
-  local label="$1"
-  shift
-  local cmd
+# Debian-family packages rename bat and fd. The tools are installed, but the
+# aliases, fzf previews, Yazi, and LazyVim look for the upstream name.
+check_renamed_cmd() {
+  local alt="$2"
+  local name="$1"
 
-  for cmd in "$@"; do
-    if command -v "$cmd" >/dev/null 2>&1; then
-      ok "$label found as $cmd"
-      return 0
-    fi
-  done
+  if command -v "$name" >/dev/null 2>&1; then
+    ok "$name found"
+  elif command -v "$alt" >/dev/null 2>&1; then
+    ok "$name found as $alt"
+    warn "$name is only available as $alt; run ./scripts/install_command_shims.sh --yes to link it as $name"
+  else
+    fail "$name not found"
+  fi
+}
 
-  fail "$label not found"
+check_tmux_version() {
+  local major
+  local minor
+  local version
+
+  command -v tmux >/dev/null 2>&1 || return 0
+  version="$(tmux -V 2>/dev/null | sed -n 's/^tmux[^0-9]*\([0-9][0-9]*\)\.\([0-9][0-9]*\).*/\1 \2/p')"
+  [[ -n "$version" ]] || return 0
+  read -r major minor <<< "$version"
+
+  if ((major > 3 || (major == 3 && minor >= 2))); then
+    ok "tmux $major.$minor supports the workspace (3.2 or newer)"
+  else
+    warn "tmux $major.$minor is older than 3.2; the workspace needs 3.2 or newer"
+  fi
+}
+
+# Runs git against the target HOME only, so a test HOME never reads the real
+# user's configuration. --includes matters: the identity lives in the
+# included ~/.gitconfig.local, which --global alone would not read.
+target_git_config() {
+  if [[ "$TARGET_HOME" == "${HOME:-}" ]]; then
+    git config --global --includes --get "$1" 2>/dev/null || true
+  else
+    env -u XDG_CONFIG_HOME -u GIT_CONFIG_GLOBAL HOME="$TARGET_HOME" git config --global --includes --get "$1" 2>/dev/null || true
+  fi
+}
+
+check_git_setup() {
+  local editor
+  local editor_cmd
+  local email
+  local name
+
+  command -v git >/dev/null 2>&1 || return 0
+
+  name="$(target_git_config user.name)"
+  email="$(target_git_config user.email)"
+  if [[ -z "$name" || -z "$email" ]]; then
+    warn "git identity is not set; add user.name and user.email to $TARGET_HOME/.gitconfig.local"
+  elif [[ "$name" == *"<YOUR_"* || "$email" == *"<YOUR_"* ]]; then
+    warn "git identity is still a placeholder; set user.name and user.email in $TARGET_HOME/.gitconfig.local"
+  else
+    ok "git identity is set"
+  fi
+
+  editor="$(target_git_config core.editor)"
+  [[ -n "$editor" ]] || return 0
+  # The program may be quoted because its path contains spaces.
+  case "$editor" in
+    \'*)
+      editor_cmd="${editor#\'}"
+      editor_cmd="${editor_cmd%%\'*}"
+      ;;
+    \"*)
+      editor_cmd="${editor#\"}"
+      editor_cmd="${editor_cmd%%\"*}"
+      ;;
+    *)
+      editor_cmd="${editor%%[[:space:]]*}"
+      ;;
+  esac
+  if command -v "$editor_cmd" >/dev/null 2>&1; then
+    ok "git editor $editor_cmd found"
+  else
+    warn "git core.editor is \"$editor\" but $editor_cmd is not installed; git commit cannot open an editor"
+  fi
 }
 
 check_zsh_syntax_highlighting() {
@@ -170,13 +240,14 @@ main() {
   check_cmd zsh
   check_zsh_syntax_highlighting
   check_cmd tmux
+  check_tmux_version
   check_cmd starship
   check_cmd btop
   check_cmd fzf
   check_cmd zoxide
   check_cmd eza
-  check_any_cmd "bat" bat batcat
-  check_any_cmd "fd" fd fdfind
+  check_renamed_cmd bat batcat
+  check_renamed_cmd fd fdfind
   check_cmd rg
   check_cmd lazygit
   check_cmd nvim
@@ -184,6 +255,9 @@ main() {
   check_cmd ya
   check_cmd ghostty 1
   printf 'note: Ghostty is an optional GUI terminal emulator.\n\n'
+
+  check_git_setup
+  printf '\n'
 
   check_link "configs/zsh/zshrc" ".zshrc"
   check_link "configs/zsh/zprofile" ".zprofile"

@@ -231,7 +231,22 @@ sanitize_text_file() {
     s/\Q$user\E/<YOUR_USERNAME>/g if length $user;
   ' "$file"
 
-  if [[ "$rel" == "configs/git/gitconfig" ]] || [[ "$rel" == "configs/git/gitconfig.example" ]]; then
+  if [[ "$rel" == "configs/git/gitconfig" ]]; then
+    # This file is linked to ~/.gitconfig, so it must not carry an identity,
+    # not even a placeholder: a placeholder would author every commit.
+    # The identity lives in ~/.gitconfig.local, which the file includes.
+    perl -0pi -e '
+      s/^[ \t]*(?:name|email|signingkey)[ \t]*=.*\n?//gmi;
+      s/^\[user\][ \t]*\n(?=[ \t]*\[|\z)//gmi;
+    ' "$file"
+    if ! grep -Fq '.gitconfig.local' "$file"; then
+      # A file that does not end in a newline would swallow the section header.
+      if [[ -s "$file" && -n "$(tail -c 1 "$file")" ]]; then
+        printf '\n' >> "$file"
+      fi
+      printf '[include]\n\tpath = ~/.gitconfig.local\n' >> "$file"
+    fi
+  elif [[ "$rel" == "configs/git/gitconfig.example" ]]; then
     perl -0pi -e '
       s/^([ \t]*name[ \t]*=[ \t]*).*$/${1}<YOUR_NAME>/gmi;
       s/^([ \t]*email[ \t]*=[ \t]*).*$/${1}<YOUR_EMAIL>/gmi;
