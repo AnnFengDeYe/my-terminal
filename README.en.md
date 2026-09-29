@@ -27,16 +27,7 @@ It supports macOS, Debian, Ubuntu, Raspberry Pi OS, Arch Linux, and Fedora. The 
 - **`5:btop`**: a dedicated system monitor page running `btop` by default.
 - **`6:manual`**: an alias and function manual for quickly looking up common `zshrc` commands.
 
-The default agent config lives in `configs/workspace/agents.tsv`. This repository does not install Codex, Gemini, or any other AI CLI automatically; each pane only checks whether the configured command exists, starts it when available, and falls back to a shell when it is missing. To customize agents, set `WORKSPACE_AGENT_CONFIG=/path/to/agents.tsv` or create `.my-terminal/agents.tsv` inside a project:
-
-```tsv
-# role	title	command
-agent-1	Codex	codex
-agent-2	Gemini	gemini
-agent-3	Claude	claude
-```
-
-The `manual` data lives in `configs/zsh/workplace_manual.tsv`; edit that table when adding or changing aliases.
+The `manual` data lives in `configs/zsh/workplace_manual.tsv`; edit that table when adding or changing aliases, then run `./scripts/workplace_manual.sh --check` to confirm the manual still matches `zshrc` (`--sync` fixes drifted line numbers).
 
 Start a workspace for the current directory:
 
@@ -50,24 +41,92 @@ If the zsh config from this repository is loaded, use the shortcut command:
 workplace
 ```
 
-`workplace` starts or enters the daily workspace for the current directory. When entering an existing workspace, it performs a light, non-destructive repair: it restores managed window names, ordering, tmux hooks, and options without deleting unknown windows or stopping running tasks.
-
-If a managed pane was closed, or pane titles / roles were changed, run `workplace --repair` to recreate missing managed panes and repair pane metadata; it does not delete existing panes or unknown windows. Use `workplace --repair-layout` when you also want to refit managed pane layouts. `workplace --reset` deletes and recreates the whole tmux session, which stops any tasks running inside it.
-
-On startup, it detects the current terminal size and fits the tmux workspace to the full terminal window. When entering an existing workspace, it only syncs window size and preserves current pane ratios and zoom state, so enlarged panes are not reset to the default layout. Set `WORKSPACE_COLS` / `WORKSPACE_LINES` when you need a fixed size; use `workplace --reset` only when you want to fully recreate the default layout.
-
 Start a workspace for another project:
 
 ```sh
 ./scripts/workspace_layout.sh --dir ~/your-project
 ```
 
+On startup, it detects the current terminal size and fits the tmux workspace to the full terminal window. When entering an existing workspace, it only syncs window size and preserves current pane ratios and zoom state, so enlarged panes are not reset to the default layout. Set `WORKSPACE_COLS` / `WORKSPACE_LINES` when you need a fixed size.
+
+### 🗂️ One workspace per project
+
+`workplace` enters a single shared daily workspace by default. With `--project` (alias `wp`), every project gets its own. A project is the git repository that contains the directory, or the directory itself outside a repository, so running the command from any subdirectory, or pointing `--dir` at one, returns to the same workspace. The daily workspace and workspaces named with `--session` never count as the project workspace of a directory, even when they were started there.
+
+| Command | What it does |
+| --- | --- |
+| `wp` / `workplace --project` | Enter the workspace of the current project, creating it when needed |
+| `wpick` / `workplace --pick` | Pick a running workspace, or a project directory to open as a new one; `Alt+0` opens the same picker inside tmux |
+| `wls` / `workplace --sessions` | List running workspaces with their kind (`daily` / `project` / `named`) and directory |
+
+- The picker offers directories from your zoxide history; set `WORKSPACE_PICK_DIRS=~/projects:~/work` to add parent directories. It shows a preview when fzf is installed and falls back to a numbered menu otherwise.
+- Set `WORKSPACE_SESSION_MODE=project` to make `workplace` per-project by default; `workplace --global` then enters the daily workspace.
+- The left side of the status bar names the current workspace and the current window is highlighted; a window that rings the bell is marked with `!`.
+- Change `Alt+0` with `WORKSPACE_PICK_KEY`, or set it to `none` to remove the binding. The key belongs to the whole tmux server and is remembered once set.
+- Switching to a running workspace through the picker leaves its current window and any half-typed input alone.
+- When another command named `wp` is installed (WP-CLI, for example), the `wp` alias is not defined; use `workplace --project` instead.
+
+### 🤖 Agent window
+
+The default agent config lives in `configs/workspace/agents.tsv`. This repository does not install Codex, Gemini, or any other AI CLI automatically; each pane only checks whether the configured command exists, starts it when available, and falls back to a shell when it is missing. To customize agents, set `WORKSPACE_AGENT_CONFIG=/path/to/agents.tsv`, create `~/.config/my-terminal/workspace_agents.tsv`, or create `.my-terminal/agents.tsv` inside a project:
+
+```tsv
+# role	title	command	cwd
+agent-1	Codex	codex	worktree
+agent-2	Gemini	gemini	worktree
+agent-3	Claude	claude
+```
+
+Columns are separated by tabs, and several tabs may be used to align them; an empty column is therefore written as `-`, for example `-` in the command column for a plain shell. The optional 4th column, `cwd`, is where the agent starts: leaving it out means the workspace directory, `worktree` means a git worktree of its own, and anything else is a path (relative to the workspace directory, or starting with `/` or `~/`). The agent process can read `WORKSPACE_ROOT`, `WORKSPACE_AGENT_ROLE`, and `WORKSPACE_AGENT_TITLE` from its environment.
+
+Settings such as `WORKSPACE_AGENT_CONFIG` and `--agent-worktrees` are kept with the workspace they created: entering it again or running `--repair` uses them without being told. They are not passed on to the shells inside the workspace, so a command typed there starts from your own environment and never carries the settings of one workspace into another.
+
+**Project configs must be trusted first.** The commands in `.my-terminal/agents.tsv` start automatically when the workspace opens, so a freshly cloned repository must not be able to run anything. An untrusted project config is ignored with a notice, and the next config in line is used instead. Review the file, then run `workplace --trust` once; editing the file revokes trust until you run it again.
+
+**Let several agents edit in parallel.** Agents that share one working directory overwrite each other. `worktree` gives each agent its own git worktree and branch (`agent/<role>`) and leaves your checkout alone:
+
+```sh
+workplace --project --agent-worktrees   # every agent uses a worktree this time
+workplace --worktrees                   # branch and state of each worktree
+git merge agent/agent-1                 # merge an agent's work from your checkout
+workplace --prune-worktrees             # preview what can be removed
+workplace --prune-worktrees --yes       # remove it
+```
+
+Worktrees are created outside the repository (`~/.local/share/my-terminal/worktrees/`, change it with `WORKSPACE_WORKTREE_ROOT`), so editors, search tools, and language servers never see a second copy of the code. Pruning only removes worktrees that cannot lose work: anything with uncommitted changes, unmerged commits, or a pane still running inside it is kept.
+
+**Ask every agent the same question.** `wsend` (`workplace --send`) pastes text into every running agent and presses Enter, which makes answers easy to compare:
+
+```sh
+wsend "review the staged diff and list risky changes"
+wsend "answer this one only" --to Claude   # filter by role or title, comma-separated
+git diff --staged | wsend -                # read the text from stdin
+wsend "do not commit yet" --no-enter       # paste without pressing Enter
+```
+
+Only panes that are running an agent receive the text: either the workspace started the agent and it is still running, or the program in front is the configured agent itself. Panes sitting at a shell prompt, in ssh, or in a REPL are skipped, so backticks or `$(...)` inside a prompt are never executed by a shell. A Node-based CLI that you restart by hand after it exited runs as `node` and is not recognised; watch for the skip notice in that case.
+
+**Know when an agent needs you.** When an agent rings the bell, `2:agent` in the status bar is marked with `!` and changes colour. If your CLI never rings the bell, `export WORKSPACE_AGENT_SILENCE=30` in your shell config: the agent window is marked with `~`, and the terminal bell rings once, after 30 quiet seconds.
+
+### 🔧 Repair and reset
+
+`workplace` starts or enters the workspace. When entering an existing workspace, it performs a light, non-destructive repair: it restores managed window names, ordering, tmux hooks, and options without deleting unknown windows or stopping running tasks.
+
+If a managed pane was closed, or pane titles / roles were changed, run `workplace --repair` to recreate missing managed panes and repair pane metadata; it does not delete existing panes or unknown windows. Use `workplace --repair-layout` when you also want to refit managed pane layouts. `workplace --reset` deletes and recreates the whole tmux session, which stops any tasks running inside it.
+
+`--reset` rebuilds with the settings of that one command, not with the ones the workspace had: to keep a custom agent config or worktrees, name them again when you reset; leave them out to go back to the defaults.
+
+Run inside a workspace, these commands act on the workspace you are in; when the command names another target with `--session`, `--project`, `--global`, or `--dir`, the command wins. `workplace --reset` run from inside builds the new workspace first, moves your terminal over, and only then removes the old one, so you are never dropped out of tmux, and it rebuilds in the directory the workspace already had; run from outside, it rebuilds in the current directory.
+
+Pane border labels are stored by the workspace, so a program that rewrites the terminal title with escape sequences cannot change them.
+
 ## ✨ Key Features
 
 - **🌍 Cross-platform install**: detects the OS and uses the matching package manager: Homebrew, apt, pacman, or dnf. Linux can also use Homebrew when explicitly selected.
 - **🛡️ Safety first**: preview mode is read-only. It does not create files, install packages, or create symlinks. Real writes require `--yes`, and replacing existing configs requires `--backup`.
 - **🧩 Restorable configs**: existing configs are backed up next to the original target, for example `~/.zshrc.backup.20260507-160000`.
-- **🧪 Automated tests**: GitHub Actions runs Bash syntax checks, ShellCheck, temporary-HOME safety tests, and tmux workspace / showcase smoke tests.
+- **🧪 Automated tests**: GitHub Actions runs Bash / zsh syntax checks, ShellCheck, temporary-HOME safety tests, and tmux workspace tests on both Ubuntu and macOS. Both test suites also run locally without touching your configs or tmux sessions.
+- **🤖 A workspace built for several agents**: one workspace per project, agents that work in parallel in their own git worktrees, and one command to ask all of them; agent configs that come with a project only run after you trust them.
 - **🎭 Privacy sanitization**: existing local configs can be imported into repository copies, with sensitive data sanitized only inside the repository.
 
 ## ⚡ Quick Start
@@ -112,7 +171,7 @@ This repository can automatically install and configure these tools:
 **💻 Core CLI / TUI**
 
 - **Shell and prompt**: `zsh`, `zsh-syntax-highlighting`, `starship`
-- **CLI enhancements**: `eza`, `bat` / `batcat`, `zoxide`, `ripgrep`, `fd` / `fdfind`, `fzf`
+- **CLI enhancements**: `eza`, `bat` / `batcat`, `zoxide`, `ripgrep`, `fd` / `fdfind`, `fzf`. Debian, Ubuntu, and Raspberry Pi OS install `bat` and `fd` as `batcat` and `fdfind`; the installer links them as `bat` and `fd` in `~/.local/bin` so the aliases, fzf previews, Yazi, and LazyVim can find them.
 - **System monitor**: `btop`
 - **Terminal and file workflow**: `tmux`, `yazi`
 - **Developer tools**: `neovim` / `nvim`, `lazygit`
@@ -162,6 +221,8 @@ During install, configs under `configs/` are symlinked into the target HOME. Exi
 | `configs/nvim/` | `~/.config/nvim` |
 | `configs/git/gitconfig` | `~/.gitconfig` |
 
+`configs/git/gitconfig` holds shared defaults only. It carries no identity and ends by including `~/.gitconfig.local`. If you already have a `~/.gitconfig` when the link is created, it is copied to `~/.gitconfig.local` first (an existing one is never overwritten), so your name, email, signing, and credential settings keep working. Put personal settings in `~/.gitconfig.local`, for example `git config --file ~/.gitconfig.local user.name "Your Name"`; `git config --global` follows the symlink and edits the repository file.
+
 ## 🛠️ Command Reference
 
 | Goal | Command |
@@ -173,19 +234,29 @@ During install, configs under `configs/` are symlinked into the target HOME. Exi
 | Recommended install with Ghostty | `./install.sh --install-packages --install-gui-apps --install-fonts --set-default-shell --backup --yes` |
 | Link configs only | `./install.sh --link-only --backup --yes` |
 | Check configuration | `./scripts/doctor.sh` |
+| Check that the alias manual matches zshrc | `./scripts/workplace_manual.sh --check`, fix line numbers with `--sync` |
+| Link `batcat` / `fdfind` as `bat` / `fd` | `./scripts/install_command_shims.sh --yes` |
 | Quickly enter daily workspace | `workplace` |
-| Non-destructively repair daily workspace | `workplace --repair` or `./scripts/workspace_layout.sh --repair` |
-| Recreate daily workspace | `workplace --reset` or `./scripts/workspace_layout.sh --reset` |
+| Enter the workspace of the current project | `wp` or `workplace --project` |
+| Pick or create a project workspace | `wpick` or `workplace --pick`, `Alt+0` inside tmux |
+| List running workspaces | `wls` or `workplace --sessions` |
+| Send one prompt to every agent | `wsend "..."` or `workplace --send "..."` |
+| Give each agent its own worktree | `workplace --project --agent-worktrees` |
+| List / clean up agent worktrees | `workplace --worktrees`, `workplace --prune-worktrees [--yes]` |
+| Trust the agent config of a project | `workplace --trust` |
+| Non-destructively repair workspace | `workplace --repair` or `./scripts/workspace_layout.sh --repair` |
+| Recreate workspace | `workplace --reset` or `./scripts/workspace_layout.sh --reset` |
 | Open README showcase layout | `./scripts/showcase_layout.sh --reset` |
 | Preview restore | `./scripts/restore_backups.sh --dry-run` |
 | Run restore | `./scripts/restore_backups.sh --yes` |
 | Preview local config import | `./scripts/import_existing_configs.sh --dry-run` |
 | Import local configs with sanitization | `./scripts/import_existing_configs.sh --yes --sanitize` |
-| Run safety tests | `./test_install.sh` |
+| Run install safety tests | `./test_install.sh` |
+| Run workspace tests | `./test_workspace.sh` |
 
 ## 🔁 Restore and Import
 
-Restore only touches symlinks managed by this repository. It does not delete normal files.
+Restore only touches symlinks managed by this repository. It does not delete normal files. The `~/.gitconfig.local` file and the `bat` / `fd` links in `~/.local/bin` created during install are kept; delete them by hand if you no longer want them.
 
 ```sh
 ./scripts/restore_backups.sh --dry-run
@@ -208,6 +279,7 @@ The sanitization report is written to [scripts/sanitize_report.md](./scripts/san
 ├── setup.sh               # interactive entrypoint
 ├── install.sh             # core install script
 ├── test_install.sh        # temporary-HOME safety tests
+├── test_workspace.sh      # workspace tests on an isolated tmux server
 ├── LICENSE                # MIT License
 ├── assets/                # README images and showcase assets
 ├── configs/               # dotfiles to link

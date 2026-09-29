@@ -5,17 +5,17 @@ on:
   pull_request:
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install test dependencies
+      - name: Install lint dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y file shellcheck tmux
+          sudo apt-get install -y shellcheck zsh
 
       - name: Set up Go for Actionlint
         uses: actions/setup-go@v5
@@ -24,17 +24,48 @@ jobs:
 
       - name: Bash syntax check
         run: |
-          bash -n setup.sh install.sh test_install.sh
+          bash -n setup.sh install.sh test_install.sh test_workspace.sh
           bash -n scripts/*.sh
+
+      - name: Zsh syntax check
+        run: |
+          zsh -n configs/zsh/zshenv
+          zsh -n configs/zsh/zprofile
+          zsh -n configs/zsh/zshrc
 
       - name: ShellCheck
         run: |
-          shellcheck --severity=warning -x setup.sh install.sh test_install.sh scripts/*.sh
+          shellcheck --severity=warning -x setup.sh install.sh test_install.sh test_workspace.sh scripts/*.sh
 
       - name: Actionlint
         run: |
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
           "$(go env GOPATH)/bin/actionlint"
+
+  test:
+    # macOS ships bash 3.2 and BSD userland; Linux ships GNU userland and a
+    # different tmux. The scripts have to work on both.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install test dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y file tmux zsh
+
+      - name: Install test dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install tmux
 
       - name: Run install safety tests
         run: ./test_install.sh
@@ -45,12 +76,14 @@ jobs:
           ./install.sh --help
           ./scripts/doctor.sh --help
           ./scripts/preview_install.sh --help
+          ./scripts/install_command_shims.sh --help
           ./scripts/showcase_layout.sh --help
           ./scripts/workspace_layout.sh --help
           ./scripts/workplace_manual.sh --help
 
       - name: Check workplace manual
         run: |
+          ./scripts/workplace_manual.sh --check
           ./scripts/workplace_manual.sh --list | grep -q '^ll[[:space:]]'
           ./scripts/workplace_manual.sh --list | grep -q '^rgc[[:space:]]'
           ./scripts/workplace_manual.sh --query tmux | grep -q '^tls[[:space:]]'
@@ -70,89 +103,7 @@ jobs:
             test -s "$asset"
           done
 
-      - name: Tmux layout smoke tests
+      - name: Workspace tests
         env:
           TERM: xterm-256color
-          WORKSPACE_COLS: 120
-          WORKSPACE_LINES: 36
-          SHOWCASE_COLS: 120
-          SHOWCASE_LINES: 36
-        run: |
-          cleanup() {
-            tmux kill-session -t ci-workspace 2>/dev/null || true
-            tmux kill-session -t ci-workspace-agents 2>/dev/null || true
-            tmux kill-session -t ci-showcase 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          workspace_manifest="$(./scripts/workspace_layout.sh --list-windows)"
-          expected_workspace_windows="$(printf '%s\n' "$workspace_manifest" | awk -F: '{ printf "%s:%s ", $1, $2 }')"
-          expected_workspace_count="$(printf '%s\n' "$workspace_manifest" | wc -l | tr -d ' ')"
-          primary_window="$(printf '%s\n' "$workspace_manifest" | awk -F: '$3 == "primary" { print $2; exit }')"
-          primary_entry_pane="$(printf '%s\n' "$workspace_manifest" | awk -F: '$3 == "primary" { print $4; exit }')"
-
-          WORKSPACE_COLS=80 WORKSPACE_LINES=24 ./scripts/workspace_layout.sh --session ci-workspace --reset --no-attach
-          ./scripts/workspace_layout.sh --session ci-workspace --no-attach
-          test "$(tmux display-message -p -t "ci-workspace:$primary_window" '#{pane_title}')" = "$primary_entry_pane"
-          test "$(tmux show-options -t ci-workspace -qv window-size)" = "latest"
-          while IFS=: read -r _ window_name _; do
-            test "$(tmux display-message -p -t "ci-workspace:$window_name" '#{window_width}x#{window_height}')" = "120x36"
-            test "$(tmux show-window-options -t "ci-workspace:$window_name" -v aggressive-resize)" = "on"
-          done <<< "$workspace_manifest"
-          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_width} #{pane_height}' | awk '$1 == "editor" { print ($2 >= 70 && $3 >= 20) ? "ok" : "bad" }')" = "ok"
-          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_width} #{pane_height}' | awk '$1 == "files" { print ($2 >= 40 && $3 >= 15) ? "ok" : "bad" }')" = "ok"
-          test "$(tmux list-windows -t ci-workspace | wc -l | tr -d ' ')" = "$expected_workspace_count"
-          test "$(tmux list-windows -t ci-workspace -F '#I:#W' | tr '\n' ' ')" = "$expected_workspace_windows"
-          test "$(tmux list-panes -t ci-workspace:dev | wc -l | tr -d ' ')" = "4"
-          test "$(tmux list-panes -t ci-workspace:agent | wc -l | tr -d ' ')" = "2"
-          test "$(tmux list-panes -t ci-workspace:ssh | wc -l | tr -d ' ')" = "4"
-          test "$(tmux list-panes -t ci-workspace:logs | wc -l | tr -d ' ')" = "2"
-          test "$(tmux list-panes -t ci-workspace:btop | wc -l | tr -d ' ')" = "1"
-          test "$(tmux list-panes -t ci-workspace:manual | wc -l | tr -d ' ')" = "1"
-          test "$(tmux list-panes -t ci-workspace:agent -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "agent-1 agent-2 "
-          test "$(tmux list-panes -t ci-workspace:agent -F '#{pane_title}' | tr '\n' ' ')" = "Codex Gemini "
-          test "$(tmux list-panes -t ci-workspace:ssh -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "ssh-1 ssh-3 ssh-2 ssh-4 "
-          test "$(tmux list-panes -t ci-workspace:logs -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "logs-1 logs-2 "
-          test "$(tmux list-panes -t ci-workspace:btop -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "monitor "
-          test "$(tmux list-panes -t ci-workspace:manual -F '#{@workspace_pane_role}' | tr '\n' ' ')" = "manual "
-
-          custom_agent_config="$(mktemp)"
-          printf 'agent-1\tCodex\tcodex\nagent-2\tGemini\tgemini\nagent-3\tClaude\tclaude\n' > "$custom_agent_config"
-          WORKSPACE_AGENT_CONFIG="$custom_agent_config" WORKSPACE_COLS=120 WORKSPACE_LINES=36 ./scripts/workspace_layout.sh --session ci-workspace-agents --reset --no-attach
-          test "$(tmux list-panes -t ci-workspace-agents:agent | wc -l | tr -d ' ')" = "3"
-          for role in agent-1 agent-2 agent-3; do
-            tmux list-panes -t ci-workspace-agents:agent -F '#{@workspace_pane_role}' | grep -qx "$role"
-          done
-          tmux show-hooks -t ci-workspace client-resized | grep -q -- '--schedule-fit'
-          tmux show-hooks -t ci-workspace client-attached | grep -q -- '--schedule-fit'
-          tmux show-hooks -t ci-workspace client-session-changed | grep -q -- '--schedule-fit'
-          if tmux show-hooks -t ci-workspace after-select-window 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'; then
-            exit 1
-          fi
-          if tmux show-hooks -t ci-workspace session-window-changed 2>/dev/null | grep -q -- '--fit-only\|--schedule-fit'; then
-            exit 1
-          fi
-
-          dev_shell_pane="$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_id}' | awk '$1 == "shell" { print $2; exit }')"
-          test -n "$dev_shell_pane"
-
-          tmux resize-pane -t "$dev_shell_pane" -y 20
-          WORKSPACE_COLS=140 WORKSPACE_LINES=40 ./scripts/workspace_layout.sh --session ci-workspace --fit-only
-          test "$(tmux display-message -p -t ci-workspace:dev '#{window_width}x#{window_height}')" = "140x40"
-          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_height}' | awk '$1 == "shell" { print ($2 >= 18) ? "ok" : "bad" }')" = "ok"
-
-          WORKSPACE_REFIT_LAYOUT=1 WORKSPACE_COLS=140 WORKSPACE_LINES=40 ./scripts/workspace_layout.sh --session ci-workspace --fit-only
-          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_height}' | awk '$1 == "shell" { print ($2 <= 14) ? "ok" : "bad" }')" = "ok"
-          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_width} #{pane_height}' | awk '$1 == "git" { print ($2 <= 52 && $3 >= 18) ? "ok" : "bad" }')" = "ok"
-
-          tmux resize-pane -t "$dev_shell_pane" -y 20
-          tmux resize-pane -Z -t "$dev_shell_pane"
-          test "$(tmux display-message -p -t ci-workspace:dev '#{window_zoomed_flag}')" = "1"
-          WORKSPACE_REFIT_LAYOUT=1 WORKSPACE_COLS=140 WORKSPACE_LINES=40 ./scripts/workspace_layout.sh --session ci-workspace --fit-only
-          test "$(tmux display-message -p -t ci-workspace:dev '#{window_zoomed_flag}')" = "1"
-          tmux resize-pane -Z -t "$dev_shell_pane"
-          test "$(tmux list-panes -t ci-workspace:dev -F '#{@workspace_pane_role} #{pane_height}' | awk '$1 == "shell" { print ($2 >= 18) ? "ok" : "bad" }')" = "ok"
-
-          ./scripts/showcase_layout.sh --session ci-showcase --reset --no-attach
-          test "$(tmux list-windows -t ci-showcase | wc -l | tr -d ' ')" = "4"
-          test "$(tmux list-panes -t ci-showcase:1 | wc -l | tr -d ' ')" = "4"
+        run: ./test_workspace.sh
