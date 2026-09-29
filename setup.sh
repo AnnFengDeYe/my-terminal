@@ -335,6 +335,7 @@ show_commands() {
   ./scripts/import_existing_configs.sh --dry-run
   ./scripts/import_existing_configs.sh --yes --sanitize
   ./test_install.sh
+  ./test_workspace.sh
 EOF
   else
     cat <<'EOF'
@@ -353,6 +354,7 @@ Common commands:
   ./scripts/import_existing_configs.sh --dry-run
   ./scripts/import_existing_configs.sh --yes --sanitize
   ./test_install.sh
+  ./test_workspace.sh
 EOF
   fi
 }
