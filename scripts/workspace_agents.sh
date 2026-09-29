@@ -607,33 +607,78 @@ workspace_send_matches_filter() {
   return 1
 }
 
+# Prints "PGID ARGS" for the process group that holds the terminal of a pane:
+# its id, and the command line of its leader. Prints nothing when ps cannot
+# tell.
+workspace_pane_foreground() {
+  local args
+  local number_pattern='^[1-9][0-9]*$'
+  local pane_pid="$1"
+  local pgid
+
+  [[ "$pane_pid" =~ $number_pattern ]] || return 0
+  pgid="$(ps -o tpgid= -p "$pane_pid" 2>/dev/null | tr -d '[:space:]' || true)"
+  [[ "$pgid" =~ $number_pattern ]] || return 0
+  args="$(ps -o args= -p "$pgid" 2>/dev/null || true)"
+  printf '%s %s\n' "$pgid" "$args"
+}
+
+# True when a command line is the agent: the program itself, or an
+# interpreter running it, as in "node /opt/homebrew/bin/gemini".
+workspace_command_is_agent() {
+  local executable="${2##*/}"
+  local index
+  local word
+  local words=()
+
+  [[ -n "$executable" && -n "$1" ]] || return 1
+  workspace_is_shell_name "$executable" && return 1
+
+  read -r -a words <<< "$1"
+  for ((index = 0; index < ${#words[@]} && index < 5; index++)); do
+    word="${words[$index]##*/}"
+    [[ "${word#-}" == "$executable" ]] && return 0
+  done
+
+  return 1
+}
+
 # A pane at a shell prompt would execute pasted text, including any command
-# substitution inside a prompt. A pane qualifies only when the workspace
-# started the agent and that same process still owns the pane, or when the
-# program in the foreground is the configured agent itself. Anything else,
-# such as ssh, a REPL, or a shell inside a wrapper, is left alone.
+# substitution inside a prompt. A pane qualifies in two cases only.
+#
+# The workspace started the agent and the process that did so still owns the
+# pane. That process keeps the terminal while the agent runs; when another
+# process group holds it, a shell with job control has taken over, which is
+# what happens when a login profile replaces the shell it was started by.
+#
+# Or the program that holds the terminal is the configured agent itself,
+# which covers an agent that was started again by hand.
+#
+# Anything else, such as ssh, a REPL, or a shell in a wrapper, is left alone.
 workspace_pane_runs_agent() {
   local agent_pid="$2"
-  local command="$4"
-  local executable="$5"
+  local executable="$6"
+  local front_args="$5"
+  local front_pgid="$4"
   local pane_pid="$3"
   local state="$1"
 
   if [[ "$state" == "running" && -n "$agent_pid" && "$agent_pid" == "$pane_pid" ]]; then
-    return 0
+    [[ -z "$front_pgid" || "$front_pgid" == "$pane_pid" ]] && return 0
   fi
 
-  [[ -n "$executable" && -n "$command" ]] || return 1
-  workspace_is_shell_name "$executable" && return 1
-  [[ "${command#-}" == "${executable##*/}" ]]
+  workspace_command_is_agent "$front_args" "$executable"
 }
 
-# Asks tmux about one pane right now. Panes are served one after another, so
-# what was true when the list was read may no longer be true for this pane.
+# Asks about one pane right now. Panes are served one after another, so what
+# was true when the list was read may no longer be true for this pane.
 workspace_pane_runs_agent_now() {
   local agent_pid
   local command
   local executable="$2"
+  local front
+  local front_args=""
+  local front_pgid=""
   local pane_id="$1"
   local pane_pid
   local state
@@ -644,7 +689,55 @@ workspace_pane_runs_agent_now() {
       printf '|||\n'
   ) || true
 
-  workspace_pane_runs_agent "${state:-}" "${agent_pid:-}" "${pane_pid:-}" "${command:-}" "$executable"
+  front="$(workspace_pane_foreground "${pane_pid:-}")"
+  if [[ -n "$front" ]]; then
+    front_pgid="${front%% *}"
+    front_args="${front#* }"
+  fi
+  # Without ps, the name tmux reports is the only thing known about the
+  # program in front.
+  [[ -n "$front_args" ]] || front_args="${command:-}"
+
+  workspace_pane_runs_agent "${state:-}" "${agent_pid:-}" "${pane_pid:-}" "$front_pgid" "$front_args" "$executable"
+}
+
+# Prints the first line of a text that has something on it, without the
+# space around it and cut to a length that fits a narrow input box.
+workspace_text_snippet() {
+  local line
+
+  while IFS= read -r line; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -n "$line" ]] || continue
+    printf '%s\n' "${line:0:24}"
+    return 0
+  done <<< "$1"
+}
+
+workspace_count_in() {
+  local count
+
+  count="$(printf '%s\n' "$1" | LC_ALL=C grep -F -i -o -- "$2" | wc -l | tr -d '[:space:]' || true)"
+  printf '%s\n' "${count:-0}"
+}
+
+# True when the pane shows more of the text than it did before the paste. An
+# agent that is asking a question, such as whether to sign in or to allow a
+# command, ignores pasted text; pressing Enter then would answer the
+# question. Agents fold long pastes into a "[Pasted ...]" marker, which
+# counts as well.
+workspace_text_arrived() {
+  local after
+  local before="$1"
+  local pane_id="$2"
+  local snippet="$3"
+
+  [[ -n "$snippet" ]] || return 0
+  after="$(tmux capture-pane -p -J -t "$pane_id" 2>/dev/null || true)"
+
+  [[ "$(workspace_count_in "$after" "$snippet")" -gt "$(workspace_count_in "$before" "$snippet")" ]] && return 0
+  [[ "$(workspace_count_in "$after" "[pasted")" -gt "$(workspace_count_in "$before" "[pasted")" ]]
 }
 
 # Drops input that was typed or pasted but not read yet. An agent that exits
@@ -667,16 +760,20 @@ workspace_agent_executable() {
 }
 
 workspace_send_to_agents() {
+  local attempts
+  local before
   local buffer="workspace-send-$$"
   local delay="${WORKSPACE_SEND_DELAY:-0.2}"
   local enter="$3"
   local executable
   local filter="$2"
+  local held=0
   local in_mode
   local matched=0
   local pane_id
   local role
   local sent=0
+  local snippet
   local text="$1"
   local title
   local window_id
@@ -685,6 +782,7 @@ workspace_send_to_agents() {
   window_id="$(window_id_by_name agent || true)"
   [[ -n "$window_id" ]] || die "workspace session has no agent window: $SESSION"
 
+  snippet="$(workspace_text_snippet "$text")"
   tmux set-buffer -b "$buffer" -- "$text"
 
   while IFS='|' read -r pane_id role in_mode title; do
@@ -703,11 +801,25 @@ workspace_send_to_agents() {
       tmux send-keys -t "$pane_id" -X cancel >/dev/null 2>&1 || true
     fi
 
+    before="$(tmux capture-pane -p -J -t "$pane_id" 2>/dev/null || true)"
     tmux paste-buffer -p -b "$buffer" -t "$pane_id"
+
     if [[ "$enter" == "1" ]]; then
       sleep "$delay"
+      attempts=0
+      until workspace_text_arrived "$before" "$pane_id" "$snippet"; do
+        attempts=$((attempts + 1))
+        [[ "$attempts" -lt 20 ]] || break
+        sleep 0.1
+      done
+
       if ! workspace_pane_runs_agent_now "$pane_id" "$executable"; then
         printf 'skip: %s (%s) stopped before the text was submitted\n' "$role" "${title:-$role}"
+        continue
+      fi
+      if [[ "$attempts" -ge 20 ]]; then
+        printf 'held: %s (%s) did not show the text, so Enter was not pressed; it may be asking a question\n' "$role" "${title:-$role}"
+        held=$((held + 1))
         continue
       fi
       tmux send-keys -t "$pane_id" Enter
