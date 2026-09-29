@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 
 SESSION="${SHOWCASE_SESSION:-my-terminal-showcase}"
+SESSION_TARGET=""
 RESET=0
 ATTACH=1
 PANE_MODE=""
@@ -41,7 +42,7 @@ parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --session)
-        [[ $# -ge 2 ]] || die "--session requires a name"
+        [[ $# -ge 2 && -n "$2" ]] || die "--session requires a name"
         SESSION="$2"
         shift 2
         ;;
@@ -166,10 +167,6 @@ run_pane_mode() {
   esac
 }
 
-shell_quote() {
-  printf '%q' "$1"
-}
-
 detect_tmux_size() {
   local cols="${SHOWCASE_COLS:-${COLUMNS:-}}"
   local lines="${SHOWCASE_LINES:-${LINES:-}}"
@@ -200,26 +197,26 @@ attach_or_switch() {
   fi
 
   if [[ -n "${TMUX:-}" ]]; then
-    tmux switch-client -t "$SESSION"
+    tmux switch-client -t "$SESSION_TARGET"
   else
-    tmux attach-session -t "$SESSION"
+    tmux attach-session -t "$SESSION_TARGET"
   fi
 }
 
 set_tmux_options() {
   local window_id="$1"
 
-  tmux set-option -t "$SESSION" mouse on >/dev/null
-  tmux set-option -t "$SESSION" status on >/dev/null
-  tmux set-option -t "$SESSION" status-position bottom >/dev/null
-  tmux set-option -t "$SESSION" status-bg "#333333" >/dev/null
-  tmux set-option -t "$SESSION" status-fg white >/dev/null
-  tmux set-option -t "$SESSION" base-index 1 >/dev/null
+  tmux set-option -t "$SESSION_TARGET" mouse on >/dev/null
+  tmux set-option -t "$SESSION_TARGET" status on >/dev/null
+  tmux set-option -t "$SESSION_TARGET" status-position bottom >/dev/null
+  tmux set-option -t "$SESSION_TARGET" status-bg "#333333" >/dev/null
+  tmux set-option -t "$SESSION_TARGET" status-fg white >/dev/null
+  tmux set-option -t "$SESSION_TARGET" base-index 1 >/dev/null
   tmux set-window-option -t "$window_id" pane-base-index 1 >/dev/null
-  tmux set-option -t "$SESSION" window-status-format " #I:#W " >/dev/null
-  tmux set-option -t "$SESSION" window-status-current-format " #I:#W " >/dev/null
-  tmux set-option -t "$SESSION" status-left " my-terminal " >/dev/null
-  tmux set-option -t "$SESSION" status-right " %Y-%m-%d %H:%M " >/dev/null
+  tmux set-option -t "$SESSION_TARGET" window-status-format " #I:#W " >/dev/null
+  tmux set-option -t "$SESSION_TARGET" window-status-current-format " #I:#W " >/dev/null
+  tmux set-option -t "$SESSION_TARGET" status-left " my-terminal " >/dev/null
+  tmux set-option -t "$SESSION_TARGET" status-right " %Y-%m-%d %H:%M " >/dev/null
   tmux set-window-option -t "$window_id" pane-border-status top >/dev/null
   tmux set-window-option -t "$window_id" pane-border-format " #{pane_title} " >/dev/null
   tmux bind-key -n M-1 select-window -t :=1 >/dev/null
@@ -234,19 +231,21 @@ create_session() {
   local bottom
   local right_top
   local right_bottom
-  local script_cmd
+  local start_dir
   local term_cols
   local term_lines
 
   command -v tmux >/dev/null 2>&1 || die "tmux is required"
-  script_cmd="$(shell_quote "$SCRIPT_PATH")"
+  # Panes are started with an argument vector, so no shell parses the path.
+  # tmux expands "#" in start directories; doubling it keeps the path literal.
+  start_dir="${REPO_ROOT//#/##}"
   if should_set_tmux_size; then
     read -r term_cols term_lines < <(detect_tmux_size)
   fi
 
-  if tmux has-session -t "$SESSION" 2>/dev/null; then
+  if tmux has-session -t "$SESSION_TARGET" 2>/dev/null; then
     if [[ "$RESET" == "1" ]]; then
-      tmux kill-session -t "$SESSION"
+      tmux kill-session -t "$SESSION_TARGET"
     else
       attach_or_switch
       return 0
@@ -254,28 +253,28 @@ create_session() {
   fi
 
   if should_set_tmux_size; then
-    tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n dev -c "$REPO_ROOT" "$script_cmd --pane editor"
+    tmux new-session -d -x "$term_cols" -y "$term_lines" -s "$SESSION" -n dev -c "$start_dir" "$SCRIPT_PATH" --pane editor
   else
-    tmux new-session -d -s "$SESSION" -n dev -c "$REPO_ROOT" "$script_cmd --pane editor"
+    tmux new-session -d -s "$SESSION" -n dev -c "$start_dir" "$SCRIPT_PATH" --pane editor
   fi
-  window_id="$(tmux display-message -p -t "$SESSION" '#{window_id}')"
+  window_id="$(tmux display-message -p -t "$SESSION_TARGET" '#{window_id}')"
   tmux rename-window -t "$window_id" dev
   set_tmux_options "$window_id"
 
   top_left="$(tmux display-message -p -t "$window_id" '#{pane_id}')"
-  bottom="$(tmux split-window -v -l 32% -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane prompt")"
-  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$REPO_ROOT" "$script_cmd --pane git")"
-  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$REPO_ROOT" "$script_cmd --pane files")"
+  bottom="$(tmux split-window -v -l 32% -P -F '#{pane_id}' -t "$top_left" -c "$start_dir" "$SCRIPT_PATH" --pane prompt)"
+  right_top="$(tmux split-window -h -l 36% -P -F '#{pane_id}' -t "$top_left" -c "$start_dir" "$SCRIPT_PATH" --pane git)"
+  right_bottom="$(tmux split-window -v -l 50% -P -F '#{pane_id}' -t "$right_top" -c "$start_dir" "$SCRIPT_PATH" --pane files)"
 
   tmux select-pane -t "$top_left" -T "nvim / LazyVim"
   tmux select-pane -t "$right_top" -T "lazygit"
   tmux select-pane -t "$right_bottom" -T "yazi files"
   tmux select-pane -t "$bottom" -T "preview + doctor"
 
-  tmux new-window -d -t "$SESSION" -n agent -c "$REPO_ROOT"
-  tmux new-window -d -t "$SESSION" -n ssh -c "$REPO_ROOT"
-  tmux new-window -d -t "$SESSION" -n logs -c "$REPO_ROOT"
-  tmux move-window -r -t "$SESSION"
+  tmux new-window -d -t "$SESSION_TARGET" -n agent -c "$start_dir"
+  tmux new-window -d -t "$SESSION_TARGET" -n ssh -c "$start_dir"
+  tmux new-window -d -t "$SESSION_TARGET" -n logs -c "$start_dir"
+  tmux move-window -r -t "$SESSION_TARGET"
   tmux select-window -t "$window_id"
   tmux select-pane -t "$top_left"
 
@@ -288,6 +287,12 @@ main() {
   if [[ -n "$PANE_MODE" ]]; then
     run_pane_mode
   fi
+
+  # tmux rewrites "." and ":" in session names, and resolves a bare target by
+  # prefix; "=NAME:" names exactly one session.
+  SESSION="${SESSION//./_}"
+  SESSION="${SESSION//:/_}"
+  SESSION_TARGET="=$SESSION:"
 
   create_session
 }

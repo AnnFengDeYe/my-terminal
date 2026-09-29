@@ -1,3 +1,7 @@
-# role	title	command
+# Columns are separated by tabs; several tabs may be used to align them.
+# An empty column is written as "-". The 4th column is optional:
+#   worktree   the agent gets a git worktree and branch of its own
+#   PATH       start in PATH, relative to the workspace directory
+# role	title	command	cwd
 agent-1	Codex	codex
 agent-2	Gemini	gemini
